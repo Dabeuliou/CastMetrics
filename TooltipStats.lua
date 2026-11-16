@@ -111,6 +111,69 @@ local function GetPlayerCritInfo(school, isHeal, powerType)
 	return critPct, critMult
 end
 
+-- Calcule toutes les métriques dérivées (moyenne pondérée crit, DPM/HPM, DPS/HPS) pour un sort parsé.
+-- Partagé entre le tooltip (TooltipStats) et les boutons d'action (ButtonOverlay).
+function TooltipStats.ComputeMetrics(parsed, spellID)
+	if not parsed then
+		return nil
+	end
+
+	local isHeal = (parsed.kind == "heal")
+	local kindWord = isHeal and "Soins" or "Dégâts"
+	local directAvg = (parsed.directMin + parsed.directMax) / 2
+	local dotAvg = (parsed.dotMin + parsed.dotMax) / 2
+	local cost, powerType = ns.ManaCalc.GetSpellResourceCost(spellID)
+	local critPct, critMult = GetPlayerCritInfo(parsed.school, isHeal, powerType)
+
+	local weightedAvg = parsed.avg
+	if critPct and directAvg > 0 then
+		local weightedDirect = directAvg * (1 + (critPct / 100) * (critMult - 1))
+		weightedAvg = weightedDirect + dotAvg
+	end
+
+	local critDirect = (directAvg > 0) and (directAvg * critMult) or nil
+	local critTotal = critDirect and (critDirect + dotAvg) or nil
+
+	local dpm, effCode, resName
+	if cost and cost > 0 and powerType ~= nil then
+		dpm = weightedAvg / cost
+		effCode, resName = GetEfficiencyLabels(isHeal, powerType)
+	end
+
+	local spellInfo = (spellID and C_Spell and C_Spell.GetSpellInfo) and C_Spell.GetSpellInfo(spellID) or nil
+	local castMs = (spellInfo and not ns.IsSecret(spellInfo.castTime)) and spellInfo.castTime or 0
+	local castSec = (castMs or 0) / 1000
+	local isEnergy = (Enum and Enum.PowerType and powerType == Enum.PowerType.Energy)
+	local gcd = isEnergy and 1.0 or 1.5
+	local effectiveSec = math.max(castSec, gcd)
+	local perSecCode = isHeal and "HPS" or "DPS"
+	local castTag = (castSec > gcd) and string.format("%.1fs cast", castSec) or string.format("%.1fs GCD", gcd)
+	local dps = weightedAvg / effectiveSec
+	local dotDps = (dotAvg > 0 and parsed.duration and parsed.duration > 0) and (dotAvg / parsed.duration) or nil
+
+	return {
+		isHeal = isHeal,
+		kindWord = kindWord,
+		avg = parsed.avg,
+		directAvg = directAvg,
+		dotAvg = dotAvg,
+		critPct = critPct,
+		critMult = critMult,
+		critDirect = critDirect,
+		critTotal = critTotal,
+		weightedAvg = weightedAvg,
+		cost = cost,
+		powerType = powerType,
+		dpm = dpm,
+		effCode = effCode,
+		resName = resName,
+		dps = dps,
+		perSecCode = perSecCode,
+		castTag = castTag,
+		dotDps = dotDps,
+	}
+end
+
 local function AppendSpellStats(tooltip, data)
 	local db = CastsButtonDisplayDB
 	if not db or not db.showTooltipStats then
@@ -135,104 +198,81 @@ local function AppendSpellStats(tooltip, data)
 		return
 	end
 
-	local isHeal = (parsed.kind == "heal")
-	local kindWord = isHeal and "Soins" or "Dégâts"
+	local m = TooltipStats.ComputeMetrics(parsed, spellID)
 	local lr, lg, lb = 0.85, 0.85, 0.85
-	local vr, vg, vb = isHeal and 0.35 or 1, isHeal and 1 or 0.82, isHeal and 0.5 or 0.2
-
-	local directAvg = (parsed.directMin + parsed.directMax) / 2
-	local dotAvg = (parsed.dotMin + parsed.dotMax) / 2
-	local cost, powerType = ns.ManaCalc.GetSpellResourceCost(spellID)
-	local critPct, critMult = GetPlayerCritInfo(parsed.school, isHeal, powerType)
-
-	local effectiveAvg = parsed.avg
-	if critPct and directAvg > 0 then
-		local weightedDirect = directAvg * (1 + (critPct / 100) * (critMult - 1))
-		effectiveAvg = weightedDirect + dotAvg
-	end
+	local vr, vg, vb = m.isHeal and 0.35 or 1, m.isHeal and 1 or 0.82, m.isHeal and 0.5 or 0.2
 
 	tooltip:AddLine(" ")
 	tooltip:AddLine(HEADER_TEXT)
 
 	-- 1. Moyenne totale + décomposition Direct / Périodique si applicable
-	if directAvg > 0 and dotAvg > 0 then
-		tooltip:AddDoubleLine(kindWord .. " totaux (moy.)", string.format("%.1f", parsed.avg), lr, lg, lb, vr, vg, vb)
+	if m.directAvg > 0 and m.dotAvg > 0 then
+		tooltip:AddDoubleLine(m.kindWord .. " totaux (moy.)", string.format("%.1f", m.avg), lr, lg, lb, vr, vg, vb)
 		local durText = parsed.duration and string.format(" (%ds)", parsed.duration) or ""
 		tooltip:AddDoubleLine(
 			"  Direct / Périodique",
-			string.format("%.1f + %.1f%s", directAvg, dotAvg, durText),
+			string.format("%.1f + %.1f%s", m.directAvg, m.dotAvg, durText),
 			0.65, 0.65, 0.65, 0.9, 0.9, 0.9
 		)
-	elseif dotAvg > 0 and parsed.duration then
+	elseif m.dotAvg > 0 and parsed.duration then
 		tooltip:AddDoubleLine(
-			string.format("%s totaux (%ds)", kindWord, parsed.duration),
-			string.format("%.1f", parsed.avg),
+			string.format("%s totaux (%ds)", m.kindWord, parsed.duration),
+			string.format("%.1f", m.avg),
 			lr, lg, lb, vr, vg, vb
 		)
 	else
-		tooltip:AddDoubleLine(kindWord .. " moyens", string.format("%.1f", parsed.avg), lr, lg, lb, vr, vg, vb)
+		tooltip:AddDoubleLine(m.kindWord .. " moyens", string.format("%.1f", m.avg), lr, lg, lb, vr, vg, vb)
 	end
 
 	-- 2. Coup critique et moyenne pondérée avec le % de critique réel
-	if directAvg > 0 then
-		local critDirect = directAvg * critMult
-		local critTag = critPct and string.format("×%.1f | %.1f%%", critMult, critPct) or string.format("×%.1f", critMult)
-		if dotAvg > 0 then
+	if m.critDirect then
+		local critTag = m.critPct and string.format("×%.1f | %.1f%%", m.critMult, m.critPct) or string.format("×%.1f", m.critMult)
+		if m.dotAvg > 0 then
 			tooltip:AddDoubleLine(
 				string.format("Critique (%s)", critTag),
-				string.format("%.1f (total %.1f)", critDirect, critDirect + dotAvg),
+				string.format("%.1f (total %.1f)", m.critDirect, m.critTotal),
 				lr, lg, lb, 1, 0.95, 0.55
 			)
 		else
-			tooltip:AddDoubleLine(string.format("Critique (%s)", critTag), string.format("%.1f", critDirect), lr, lg, lb, 1, 0.95, 0.55)
+			tooltip:AddDoubleLine(string.format("Critique (%s)", critTag), string.format("%.1f", m.critDirect), lr, lg, lb, 1, 0.95, 0.55)
 		end
 
-		if critPct then
-			tooltip:AddDoubleLine("Moyenne pondérée (crit)", string.format("%.1f", effectiveAvg), lr, lg, lb, vr, vg, vb)
+		if m.critPct then
+			tooltip:AddDoubleLine("Moyenne pondérée (crit)", string.format("%.1f", m.weightedAvg), lr, lg, lb, vr, vg, vb)
 		end
 	end
 
 	-- 3. Efficacité par ressource (DPM / HPM / DPR / DPE) et DPS / HPS (pondérés si crit connu)
-	if cost and cost > 0 and powerType ~= nil then
-		local effCode, resName = GetEfficiencyLabels(isHeal, powerType)
+	if m.dpm then
 		tooltip:AddDoubleLine(
-			string.format("%s (%s / %s)", effCode, kindWord, resName),
-			string.format("%.2f", effectiveAvg / cost),
+			string.format("%s (%s / %s)", m.effCode, m.kindWord, m.resName),
+			string.format("%.2f", m.dpm),
 			lr, lg, lb, 0.4, 0.85, 1
 		)
 	end
 
-	local spellInfo = (spellID and C_Spell and C_Spell.GetSpellInfo) and C_Spell.GetSpellInfo(spellID) or nil
-	local castMs = (spellInfo and not ns.IsSecret(spellInfo.castTime)) and spellInfo.castTime or 0
-	local castSec = (castMs or 0) / 1000
-	local isEnergy = (Enum and Enum.PowerType and powerType == Enum.PowerType.Energy)
-	local gcd = isEnergy and 1.0 or 1.5
-	local effectiveSec = math.max(castSec, gcd)
-	local perSecCode = isHeal and "HPS" or "DPS"
-	local castTag = (castSec > gcd) and string.format("%.1fs cast", castSec) or string.format("%.1fs GCD", gcd)
-
 	tooltip:AddDoubleLine(
-		string.format("%s (%s)", perSecCode, castTag),
-		string.format("%.1f / s", effectiveAvg / effectiveSec),
+		string.format("%s (%s)", m.perSecCode, m.castTag),
+		string.format("%.1f / s", m.dps),
 		lr, lg, lb, 1, 0.65, 0.25
 	)
 
-	if dotAvg > 0 and parsed.duration and parsed.duration > 0 then
+	if m.dotDps then
 		tooltip:AddDoubleLine(
-			string.format("%s périodique (%ds)", perSecCode, parsed.duration),
-			string.format("%.1f / s", dotAvg / parsed.duration),
+			string.format("%s périodique (%ds)", m.perSecCode, parsed.duration),
+			string.format("%.1f / s", m.dotDps),
 			lr, lg, lb, 0.85, 0.7, 0.4
 		)
 	end
 
 	-- 4. Lancers restants (uniquement si UnitPower est lisible directement)
-	if cost and cost > 0 and powerType ~= nil then
-		local currentPower = UnitPower("player", powerType)
+	if m.cost and m.cost > 0 and m.powerType ~= nil then
+		local currentPower = UnitPower("player", m.powerType)
 		if currentPower and not ns.IsSecret(currentPower) then
-			local casts = math.floor(currentPower / cost)
+			local casts = math.floor(currentPower / m.cost)
 			tooltip:AddDoubleLine(
 				"Lancers possibles",
-				string.format("%d (%d / %d)", casts, currentPower, cost),
+				string.format("%d (%d / %d)", casts, currentPower, m.cost),
 				lr, lg, lb, 0.4, 0.85, 1
 			)
 		end

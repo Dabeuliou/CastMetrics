@@ -9,3 +9,4 @@ TooltipParser.lua
 ManaCalc.lua
 TooltipStats.lua
 ButtonOverlay.lua
+Options.lua

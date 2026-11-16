@@ -31,6 +31,8 @@ local function ResolveSpellID(slot, tooltipSpellID)
 	return nil
 end
 
+ManaCalc.ResolveSpellID = ResolveSpellID
+
 -- Ensemble des ressources principales supportées (Mana, Rage, Énergie, Focalisation, etc.)
 local PRIMARY_POWER_TYPES = {}
 if Enum and Enum.PowerType then
@@ -118,6 +120,8 @@ local function GetMaxPower(powerType)
 	return nil
 end
 
+ManaCalc.ResolveSpellID = ResolveSpellID
+
 function ManaCalc.CacheMaxPowers()
 	for powerType in pairs(PRIMARY_POWER_TYPES) do
 		local rawMax = UnitPowerMax("player", powerType)
@@ -182,9 +186,8 @@ local function GetOrCreateColorCurve(cost, maxPower)
 	return curve
 end
 
--- Retourne (nombreDeCastsRestants, coutRessource, powerType, isSecret, secretColor) pour un slot donné
-function ManaCalc.GetRemainingCasts(slot, tooltipSpellID)
-	local spellID = ResolveSpellID(slot, tooltipSpellID)
+-- Retourne (nombreDeCastsRestants, coutRessource, powerType, isSecret, secretColor) pour un spellID donné
+function ManaCalc.GetRemainingCastsForSpell(spellID)
 	local cost, powerType, costSecret = ManaCalc.GetSpellResourceCost(spellID)
 	if not cost or cost <= 0 or powerType == nil then
 		return nil, nil, nil, costSecret, nil
@@ -221,4 +224,10 @@ function ManaCalc.GetRemainingCasts(slot, tooltipSpellID)
 	end
 
 	return math.floor(currentPower / cost), cost, powerType, false, nil
+end
+
+-- Retourne (nombreDeCastsRestants, coutRessource, powerType, isSecret, secretColor) pour un slot donné
+function ManaCalc.GetRemainingCasts(slot, tooltipSpellID)
+	local spellID = ResolveSpellID(slot, tooltipSpellID)
+	return ManaCalc.GetRemainingCastsForSpell(spellID)
 end

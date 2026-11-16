@@ -9,11 +9,16 @@ Addon inspiré de **DrDamage** pour **World of Warcraft: Forever** (`Interface: 
 - **Nombre de lancers possibles en bas à droite du bouton** : calculé selon la ressource du sort (Mana, Rage, Énergie, Focalisation…), avec prise en charge des *secret values* via `UnitPowerPercent` + `C_CurveUtil`.
   - Code couleur dynamique selon la marge restante (bleu → jaune → orange → rouge).
 - **Statistiques détaillées dans le tooltip des sorts** : moyenne totale, décomposition Direct + Périodique, critique estimé (×1.5), **DPM / HPM / DPR / DPE**, **DPS / HPS** (temps d'incantation / GCD et périodique) et lancers possibles.
+- **Panneau d'options natif** (**Échap → Options → AddOns → CastsButtonDisplay**, ou `/cbd config`) :
+  - Choix de la statistique affichée au centre du bouton : moyenne de base, moyenne pondérée avec critique %, intervalle Min-Max, coup critique estimé, DPM/HPM ou DPS/HPS.
+  - Sliders de taille de police pour le texte central et le compteur en bas à droite.
+  - Activation/désactivation indépendante du texte central, du compteur de lancers, du format court et des stats dans le tooltip.
 - **Commandes en jeu (`/cbd`)** :
-  - `/cbd dmg` : afficher/masquer les dégâts/soins
+  - `/cbd config` : ouvrir le panneau d'options graphique
+  - `/cbd dmg` : afficher/masquer la stat centrale
   - `/cbd casts` : afficher/masquer le compteur de lancers restants
   - `/cbd tooltip` : afficher/masquer les stats dans le tooltip
-  - `/cbd mode` : basculer entre moyenne (`avg`) et intervalle (`range`)
+  - `/cbd mode` : faire défiler la stat centrale (`avg`, `weighted`, `range`, `crit`, `dpm`, `dps`)
   - `/cbd compact` : activer/désactiver le format court (`1.4k`)
   - `/cbd debug [slot]` : inspecter les lignes brutes du tooltip d'un slot (ou du bouton sous le curseur)
 
@@ -31,3 +36,4 @@ Addon inspiré de **DrDamage** pour **World of Warcraft: Forever** (`Interface: 
 4. `ManaCalc.lua` : interrogation des namespaces modernes `C_Spell` / `Enum.PowerType` et gestion des *secret values* avec `C_CurveUtil` + `UnitPowerPercent`.
 5. `TooltipStats.lua` : extension du tooltip natif via `TooltipDataProcessor.AddTooltipPostCall` (DPM, HPM, DPS, HPS, crit).
 6. `ButtonOverlay.lua` : création de `FontString` sur les boutons d'action, `hooksecurefunc` (éviter le *taint*), tables associatives et mise en cache par bouton.
+7. `Options.lua` : création d'un panneau de configuration natif via l'API moderne `Settings` (`RegisterVerticalLayoutCategory`, `RegisterProxySetting`, `CreateCheckbox`, `CreateDropdown`, `CreateSlider`).

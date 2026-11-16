@@ -6,10 +6,13 @@ local addonName, ns = ...
 -- Valeurs par défaut de la configuration sauvegardée (SavedVariables)
 local DEFAULT_DB = {
 	showDamage = true,
+	centerStat = "avg", -- "avg", "weighted", "range", "crit", "dpm", "dps"
+	centerFontSize = 11,
 	showCasts = true,
+	castsFontSize = 10,
 	showTooltipStats = true,
-	displayMode = "avg", -- "avg" (moyenne) ou "range" (min-max)
 	compactNumbers = true, -- ex: 1450 -> 1.4k
+	previewSpellID = 0, -- 0 = sélection automatique du premier sort trouvé sur les barres
 }
 
 -- Vérifie si une valeur est protégée ("secret value") par le client moderne (WoW Forever 1.60.1+)
@@ -42,10 +45,11 @@ end
 
 local function PrintHelp()
 	print("|cff00ccff[CastsButtonDisplay]|r Commandes disponibles :")
-	print("  |cffffd100/cbd dmg|r - Afficher / masquer les dégâts ou soins")
+	print("  |cffffd100/cbd config|r - Ouvrir le panneau d'options graphique")
+	print("  |cffffd100/cbd dmg|r - Afficher / masquer la stat centrale")
 	print("  |cffffd100/cbd casts|r - Afficher / masquer le nombre de lancers (ressource)")
 	print("  |cffffd100/cbd tooltip|r - Afficher / masquer les stats (DPM, HPM, DPS) dans le tooltip")
-	print("  |cffffd100/cbd mode|r - Basculer entre moyenne (avg) et intervalle (range)")
+	print("  |cffffd100/cbd mode|r - Basculer la stat centrale (avg / weighted / range / dpm / dps)")
 	print("  |cffffd100/cbd compact|r - Activer / désactiver le format court (1.4k)")
 	print("  |cffffd100/cbd debug [slot]|r - Inspecter le tooltip d'un slot (ou bouton survolé)")
 end
@@ -116,7 +120,7 @@ local function RunDebug(slotArg)
 	))
 	local db = CastsButtonDisplayDB
 	if db then
-		print(string.format("  Options -> showDamage=%s, showCasts=%s, mode=%s", tostring(db.showDamage), tostring(db.showCasts), tostring(db.displayMode)))
+		print(string.format("  Options -> showDamage=%s, showCasts=%s, centerStat=%s", tostring(db.showDamage), tostring(db.showCasts), tostring(db.centerStat)))
 	end
 end
 
@@ -129,9 +133,13 @@ SlashCmdList["CASTSBUTTONDISPLAY"] = function(msg)
 	local cmd, arg = msg:lower():match("^%s*(%S+)%s*(.-)%s*$")
 	local db = CastsButtonDisplayDB
 
-	if cmd == "dmg" then
+	if cmd == "config" or cmd == "options" then
+		if ns.OpenOptions then
+			ns.OpenOptions()
+		end
+	elseif cmd == "dmg" then
 		db.showDamage = not db.showDamage
-		print("|cff00ccff[CastsButtonDisplay]|r Dégâts/soins : " .. (db.showDamage and "ON" or "OFF"))
+		print("|cff00ccff[CastsButtonDisplay]|r Stat centrale : " .. (db.showDamage and "ON" or "OFF"))
 		ns.RequestUpdate(false)
 	elseif cmd == "casts" then
 		db.showCasts = not db.showCasts
@@ -141,8 +149,16 @@ SlashCmdList["CASTSBUTTONDISPLAY"] = function(msg)
 		db.showTooltipStats = not db.showTooltipStats
 		print("|cff00ccff[CastsButtonDisplay]|r Stats dans le tooltip : " .. (db.showTooltipStats and "ON" or "OFF"))
 	elseif cmd == "mode" then
-		db.displayMode = (db.displayMode == "avg") and "range" or "avg"
-		print("|cff00ccff[CastsButtonDisplay]|r Mode d'affichage : " .. db.displayMode)
+		local order = { "avg", "weighted", "range", "crit", "dpm", "dps" }
+		local nextStat = order[1]
+		for i, statKey in ipairs(order) do
+			if db.centerStat == statKey then
+				nextStat = order[(i % #order) + 1]
+				break
+			end
+		end
+		db.centerStat = nextStat
+		print("|cff00ccff[CastsButtonDisplay]|r Stat centrale : " .. db.centerStat)
 		ns.RequestUpdate(false)
 	elseif cmd == "compact" then
 		db.compactNumbers = not db.compactNumbers
@@ -170,6 +186,9 @@ local function FlushUpdates()
 	if ns.UpdateAllButtons then
 		ns.UpdateAllButtons(manaOnly)
 	end
+	if ns.RefreshOptionsPreview then
+		ns.RefreshOptionsPreview()
+	end
 end
 
 function ns.RequestUpdate(onlyMana)
@@ -195,8 +214,14 @@ function events.ADDON_LOADED(loadedAddon)
 
 	-- Initialisation explicite recommandée sur WoW Forever 1.60.1
 	CastsButtonDisplayDB = CastsButtonDisplayDB or {}
+	if CastsButtonDisplayDB.centerStat == nil and CastsButtonDisplayDB.displayMode ~= nil then
+		CastsButtonDisplayDB.centerStat = CastsButtonDisplayDB.displayMode
+	end
 	ApplyDefaults(CastsButtonDisplayDB, DEFAULT_DB)
 
+	if ns.InitOptions then
+		ns.InitOptions()
+	end
 	if ns.InitButtonOverlays then
 		ns.InitButtonOverlays()
 	end
