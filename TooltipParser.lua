@@ -103,25 +103,30 @@ end
 -- Liste ordonnée de motifs pour capturer tous les segments de dégâts/soins d'une ligne
 -- (ex: dégâts directs + DoT sur Éclat lunaire, soin direct + HoT sur Rétablissement)
 local CHUNK_PATTERNS = {
-	-- Intervalles FR
+	-- Intervalles FR (toujours placés avant les motifs de valeur unique pour éviter une troncature)
 	{ pattern = "(%d+)%s+à%s+(%d+)%s+points?%s+de%s+dégâts?", kind = "damage", range = true },
 	{ pattern = "(%d+)%s+à%s+(%d+)%s+points?%s+de%s+degats?", kind = "damage", range = true },
 	{ pattern = "(%d+)%s+à%s+(%d+)%s+points?%s+de%s+vie", kind = "heal", range = true },
+	{ pattern = "soigne[^%d%.]*(%d+)%s+à%s+(%d+)", kind = "heal", range = true, requiresLineKind = "heal" },
+	{ pattern = "pour%s+(%d+)%s+à%s+(%d+)", kind = "heal", range = true, requiresLineKind = "heal" },
 	-- Intervalles EN
 	{ pattern = "(%d+)%s+to%s+(%d+)[^%.]-damage", kind = "damage", range = true },
+	{ pattern = "heals?[^%d%.]*(%d+)%s+to%s+(%d+)", kind = "heal", range = true, requiresLineKind = "heal" },
 	{ pattern = "for%s+(%d+)%s+to%s+(%d+)", kind = "heal", range = true, requiresLineKind = "heal" },
 	{ pattern = "another%s+(%d+)%s+to%s+(%d+)", kind = "heal", range = true, requiresLineKind = "heal" },
 	-- Valeurs uniques FR
 	{ pattern = "(%d+)%s+points?%s+de%s+dégâts?", kind = "damage", range = false },
 	{ pattern = "(%d+)%s+points?%s+de%s+degats?", kind = "damage", range = false },
 	{ pattern = "(%d+)%s+points?%s+de%s+vie", kind = "heal", range = false },
+	{ pattern = "(%d+)%s+points?%s+supplémentaires", kind = "heal", range = false, requiresLineKind = "heal" },
+	{ pattern = "pour%s+(%d+)%s+points?", kind = "heal", range = false, requiresLineKind = "heal" },
+	{ pattern = "soigne[^%d%.]*(%d+)", kind = "heal", range = false, requiresLineKind = "heal" },
 	-- Valeurs uniques EN
 	{ pattern = "(%d+)%s+%a+%s+damage", kind = "damage", range = false },
 	{ pattern = "(%d+)%s+damage", kind = "damage", range = false },
 	{ pattern = "for%s+(%d+)%s+health", kind = "heal", range = false, requiresLineKind = "heal" },
 	{ pattern = "heals?[^%d%.]*(%d+)", kind = "heal", range = false, requiresLineKind = "heal" },
 	{ pattern = "another%s+(%d+)", kind = "heal", range = false, requiresLineKind = "heal" },
-	{ pattern = "soigne[^%d%.]*(%d+)", kind = "heal", range = false, requiresLineKind = "heal" },
 }
 
 -- Si un segment indique "toutes les X sec pendant Y sec", multiplie par le nombre de ticks

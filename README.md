@@ -22,11 +22,18 @@ Addon inspiré de **DrDamage** pour **World of Warcraft: Forever** (`Interface: 
   - `/cbd compact` : activer/désactiver le format court (`1.4k`)
   - `/cbd debug [slot]` : inspecter les lignes brutes du tooltip d'un slot (ou du bouton sous le curseur)
 
-## Déployer et tester dans WoW Forever
+## Installation (pour les joueurs)
 
-1. Dans **Antigravity IDE**, appuyez sur `Ctrl+Shift+B` (ou **Terminal → Run Build Task...** → **Deployer vers WoW Forever**).
+1. Téléchargez l'archive `CastsButtonDisplay-vX.Y.Z.zip`.
+2. Extrayez le dossier `CastsButtonDisplay` directement dans `...\World of Warcraft\_forever_\Interface\AddOns\` (vous devez obtenir `Interface\AddOns\CastsButtonDisplay\CastsButtonDisplay.toc`).
+3. Relancez le jeu (ou `/reload`), vérifiez que **CastsButtonDisplay** est coché dans la liste des addons, puis tapez `/cbd config` en jeu pour le personnaliser.
+
+## Déployer et partager (développeur)
+
+1. **Déployer en local** : dans **Antigravity IDE**, appuyez sur `Ctrl+Shift+B` (ou **Terminal → Run Build Task...** → **Deployer vers WoW Forever**).
    - Cela exécute [deploy.ps1](deploy.ps1) via [.vscode/tasks.json](.vscode/tasks.json) et copie uniquement les fichiers de l'addon (`.toc`, `.lua`, `.xml`) vers `E:\World of Warcraft\_forever_\Interface\AddOns\CastsButtonDisplay`.
-2. Lancez le jeu (ou tapez `/reload` si le jeu est déjà ouvert après une modification).
+2. **Générer un `.zip` de partage** : `Ctrl+Shift+P` → **Tasks: Run Task** → **Packager le .zip de partage** (ou exécutez [package.ps1](package.ps1)).
+   - Génère `dist\CastsButtonDisplay-v<version>.zip` prêt à être envoyé sur Discord, Google Drive ou une **GitHub Release** (la version est lue automatiquement dans `CastsButtonDisplay.toc`).
 
 ## Ce que chaque fichier vous apprend en Lua
 

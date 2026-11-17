@@ -2,5 +2,6 @@
 Thumbs.db
 *.bak
 *.tmp
+dist/
 .vscode/*
 !.vscode/tasks.json
