@@ -199,6 +199,10 @@ local function AppendSpellStats(tooltip, data)
 	end
 
 	local m = TooltipStats.ComputeMetrics(parsed, spellID)
+	if not m then
+		return
+	end
+
 	local lr, lg, lb = 0.85, 0.85, 0.85
 	local vr, vg, vb = m.isHeal and 0.35 or 1, m.isHeal and 1 or 0.82, m.isHeal and 0.5 or 0.2
 
@@ -230,7 +234,7 @@ local function AppendSpellStats(tooltip, data)
 		if m.dotAvg > 0 then
 			tooltip:AddDoubleLine(
 				string.format("Critique (%s)", critTag),
-				string.format("%.1f (total %.1f)", m.critDirect, m.critTotal),
+				string.format("%.1f (total %.1f)", m.critDirect, m.critTotal or m.critDirect),
 				lr, lg, lb, 1, 0.95, 0.55
 			)
 		else
@@ -257,7 +261,7 @@ local function AppendSpellStats(tooltip, data)
 		lr, lg, lb, 1, 0.65, 0.25
 	)
 
-	if m.dotDps then
+	if m.dotDps and parsed.duration then
 		tooltip:AddDoubleLine(
 			string.format("%s périodique (%ds)", m.perSecCode, parsed.duration),
 			string.format("%.1f / s", m.dotDps),

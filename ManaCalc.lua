@@ -120,8 +120,6 @@ local function GetMaxPower(powerType)
 	return nil
 end
 
-ManaCalc.ResolveSpellID = ResolveSpellID
-
 function ManaCalc.CacheMaxPowers()
 	for powerType in pairs(PRIMARY_POWER_TYPES) do
 		local rawMax = UnitPowerMax("player", powerType)
