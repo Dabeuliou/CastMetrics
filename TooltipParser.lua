@@ -23,12 +23,17 @@ local function NormalizeText(text)
 	return clean
 end
 
--- Détermine si une ligne décrit des dégâts ou des soins
+-- Détermine si une ligne décrit des dégâts ou des soins réels (et non un buff de stats / changeforme)
 local function DetectLineKind(lowerText)
-	-- Vérification des soins en premier (FR et EN)
+	-- Ignore la nourriture et les boissons ("vous devez rester assis" / "must remain seated")
+	if lowerText:find("assis", 1, true) or lowerText:find("seated", 1, true) then
+		return nil
+	end
+
+	-- Vérification des soins (FR et EN) : un nombre suivi de "points de vie", ou un verbe de soin explicite
 	local padded = lowerText .. " "
 	if
-		padded:find("points? de vie")
+		padded:find("%d+%s+points?%s+de%s+vie")
 		or padded:find("soigne")
 		or padded:find("soins")
 		or padded:find("heals?[%s%p]")
@@ -38,14 +43,13 @@ local function DetectLineKind(lowerText)
 		return "heal"
 	end
 
-	-- Vérification des dégâts (FR et EN)
-	-- Attention Lua/UTF-8 : on n'utilise jamais d[ée]g[âa]ts car [...] en Lua ne matche qu'un seul octet,
-	-- alors que 'é' et 'â' font 2 octets en UTF-8. On teste les mots littéraux complets.
+	-- Vérification des dégâts (FR et EN) : un nombre suivi de "points de dégâts" / "damage", ou attaque d'arme
 	if
-		lowerText:find("dégât")
-		or lowerText:find("Dégât")
-		or lowerText:find("degat")
-		or lowerText:find("damage")
+		lowerText:find("%d+%s+points?%s+de%s+dégât")
+		or lowerText:find("%d+%s+points?%s+de%s+degat")
+		or lowerText:find("dégâts? de l'arme")
+		or lowerText:find("%d+[^%.]-damage")
+		or lowerText:find("weapon damage")
 	then
 		return "damage"
 	end
@@ -117,6 +121,7 @@ local CHUNK_PATTERNS = {
 	-- Valeurs uniques FR
 	{ pattern = "(%d+)%s+points?%s+de%s+dégâts?", kind = "damage", range = false },
 	{ pattern = "(%d+)%s+points?%s+de%s+degats?", kind = "damage", range = false },
+	{ pattern = "dégâts? de l'arme[^%d]*plus%s+(%d+)", kind = "damage", range = false },
 	{ pattern = "(%d+)%s+points?%s+de%s+vie", kind = "heal", range = false },
 	{ pattern = "(%d+)%s+points?%s+supplémentaires", kind = "heal", range = false, requiresLineKind = "heal" },
 	{ pattern = "pour%s+(%d+)%s+points?", kind = "heal", range = false, requiresLineKind = "heal" },
@@ -124,6 +129,7 @@ local CHUNK_PATTERNS = {
 	-- Valeurs uniques EN
 	{ pattern = "(%d+)%s+%a+%s+damage", kind = "damage", range = false },
 	{ pattern = "(%d+)%s+damage", kind = "damage", range = false },
+	{ pattern = "weapon damage[^%d]*plus%s+(%d+)", kind = "damage", range = false },
 	{ pattern = "for%s+(%d+)%s+health", kind = "heal", range = false, requiresLineKind = "heal" },
 	{ pattern = "heals?[^%d%.]*(%d+)", kind = "heal", range = false, requiresLineKind = "heal" },
 	{ pattern = "another%s+(%d+)", kind = "heal", range = false, requiresLineKind = "heal" },
@@ -272,31 +278,6 @@ function TooltipParser.ParseLine(rawText)
 		local t = totals[primaryKind]
 		t.school = lineSchool
 		return MakeResult(t.min, t.max, primaryKind, t)
-	end
-
-	-- 2. Fallback générique si la ligne contient un mot-clé mais aucun motif standard n'a matché
-	local fallbackDetails = { school = lineSchool }
-	local minV, maxV = lower:match("(%d+)%s+à%s+(%d+)")
-	if not minV then
-		minV, maxV = lower:match("(%d+)%s+to%s+(%d+)")
-	end
-	if not minV then
-		minV, maxV = lower:match("(%d+)%s*%-%s*(%d+)")
-	end
-	if minV then
-		return MakeResult(minV, maxV, lineKind, fallbackDetails)
-	end
-
-	for num, suffix in lower:gmatch("(%d+)([%s%%a]*)") do
-		local trimmed = suffix:match("^%s*(%S*)") or ""
-		local isUnit = trimmed:find("^%%")
-			or trimmed:find("^sec")
-			or trimmed:find("^min")
-			or trimmed:find("^yd")
-			or trimmed:find("^mana")
-		if not isUnit then
-			return MakeResult(num, num, lineKind, fallbackDetails)
-		end
 	end
 
 	return nil

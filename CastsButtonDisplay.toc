@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: CastsButtonDisplay
 ## Notes: Affiche les degats/soins du tooltip et le nombre de lancers possibles avec la mana actuelle sur les boutons d'action (style DrDamage).
-## Version: 1.0.0
+## Version: 1.0.1
 ## SavedVariables: CastsButtonDisplayDB
 
 Core.lua
