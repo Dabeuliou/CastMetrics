@@ -1,0 +1,9 @@
+package-as: CastMetrics
+
+enable-nolib-creation: no
+
+ignore:
+  - assets
+  - tests
+  - deploy.ps1
+  - package.ps1
