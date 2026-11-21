@@ -1,8 +1,9 @@
 local _, ns = ...
 
 -- Table associant chaque bouton d'action à ses FontStrings et à son cache :
--- overlays[button] = { dmgText = FontString, castsText = FontString, slot = number, spellID = number }
+-- overlays[button] = { dmgText = FontString, castsText = FontString, actionKey = string, spellID = number }
 local overlays = {}
+local hookedLibs = {}
 
 -- Préfixes standards des barres d'action Blizzard (fallback si certains boutons ne sont pas dans ActionBarButtonEventsFrame)
 local BAR_PREFIXES = {
@@ -14,6 +15,12 @@ local BAR_PREFIXES = {
 	"MultiBar5Button",
 	"MultiBar6Button",
 	"MultiBar7Button",
+}
+
+-- Bibliothèques LibActionButton utilisées par Bartender4, ElvUI, etc.
+local LAB_LIBRARIES = {
+	"LibActionButton-1.0",
+	"LibActionButton-1.0-ElvUI",
 }
 
 local function ApplyFontSize(fs, fontSize)
@@ -133,20 +140,67 @@ end
 
 ns.RenderCastsText = RenderCastsText
 
+-- Résout l'action portée par un bouton Blizzard (button.action) ou LibActionButton (Bartender4, ElvUI)
+function ns.GetButtonAction(button)
+	if not button then
+		return nil, nil
+	end
+
+	-- 1. Boutons LibActionButton-1.0 (Bartender4, ElvUI, etc.)
+	if button.GetAction then
+		local ok, actionType, actionValue = pcall(button.GetAction, button)
+		if ok and not ns.IsSecret(actionType) and not ns.IsSecret(actionValue) then
+			if actionType == "action" and type(actionValue) == "number" then
+				return "action", actionValue
+			elseif actionType == "spell" and type(actionValue) == "number" then
+				return "spell", actionValue
+			elseif actionType == "macro" and actionValue ~= nil and GetMacroSpell then
+				local macroSpellID = GetMacroSpell(actionValue)
+				if macroSpellID and not ns.IsSecret(macroSpellID) then
+					return "spell", macroSpellID
+				end
+			end
+			return nil, nil
+		end
+	end
+
+	-- 2. Fallback sur l'état interne LibActionButton (_state_type / _state_action)
+	if button._state_type and not ns.IsSecret(button._state_type) and not ns.IsSecret(button._state_action) then
+		if button._state_type == "action" and type(button._state_action) == "number" then
+			return "action", button._state_action
+		elseif button._state_type == "spell" and type(button._state_action) == "number" then
+			return "spell", button._state_action
+		end
+	end
+
+	-- 3. Boutons Blizzard natifs (et Dominos)
+	local slot = button.action
+	if slot and not ns.IsSecret(slot) and type(slot) == "number" then
+		return "action", slot
+	end
+
+	return nil, nil
+end
+
+local function ClearOverlay(overlay)
+	overlay.dmgText:SetText("")
+	overlay.castsText:SetText("")
+	overlay.actionKey = nil
+	overlay.spellID = nil
+	overlay.parsed = nil
+	overlay.lastCasts = nil
+end
+
 local function UpdateButton(button, onlyMana)
 	local overlay = overlays[button]
 	if not overlay then
 		return
 	end
 
-	local slot = button.action
-	if not slot or ns.IsSecret(slot) or type(slot) ~= "number" or not HasAction(slot) then
-		overlay.dmgText:SetText("")
-		overlay.castsText:SetText("")
-		overlay.slot = nil
-		overlay.spellID = nil
-		overlay.parsed = nil
-		overlay.lastCasts = nil
+	local actionKind, actionValue = ns.GetButtonAction(button)
+	local isValidAction = (actionKind == "action" and HasAction(actionValue)) or (actionKind == "spell" and actionValue)
+	if not isValidAction then
+		ClearOverlay(overlay)
 		return
 	end
 
@@ -155,26 +209,43 @@ local function UpdateButton(button, onlyMana)
 		return
 	end
 
-	-- Si seule la mana/ressource a changé et que le slot est identique, on évite de re-parser le tooltip
-	local prevSlot = overlay.slot
-	local needTooltip = (not onlyMana) or (prevSlot ~= slot)
+	-- Maintient le conteneur au-dessus du bouton (utile si Bartender4/Masque ajuste le FrameLevel)
+	local targetLevel = (button:GetFrameLevel() or 1) + 5
+	if overlay.container:GetFrameLevel() < targetLevel then
+		overlay.container:SetFrameLevel(targetLevel)
+	end
+
+	-- Si seule la mana/ressource a changé et que l'action est identique, on évite de re-parser le tooltip
+	local actionKey = actionKind .. ":" .. tostring(actionValue)
+	local sameAction = (overlay.actionKey == actionKey)
+	local needTooltip = (not onlyMana) or (not sameAction)
 	if needTooltip then
-		overlay.slot = slot
-		local parsed, spellID, hadSecret = ns.TooltipParser.GetActionValues(slot)
-		-- En combat, si le tooltip devient "secret", on conserve la dernière valeur connue pour le même slot
-		if not hadSecret or prevSlot ~= slot then
+		overlay.actionKey = actionKey
+		local parsed, spellID, hadSecret
+		if actionKind == "action" then
+			parsed, spellID, hadSecret = ns.TooltipParser.GetActionValues(actionValue)
+		else
+			parsed, spellID, hadSecret = ns.TooltipParser.GetSpellValues(actionValue)
+			spellID = spellID or actionValue
+		end
+		-- En combat, si le tooltip devient "secret", on conserve la dernière valeur connue pour la même action
+		if not hadSecret or not sameAction then
 			overlay.parsed = parsed
 		end
 		if spellID then
 			overlay.spellID = spellID
-		elseif prevSlot ~= slot then
+		elseif not sameAction then
 			overlay.spellID = nil
 		end
 	end
 
+	local resolvedID = overlay.spellID
+	if actionKind == "action" and ns.ManaCalc and ns.ManaCalc.ResolveSpellID then
+		resolvedID = ns.ManaCalc.ResolveSpellID(actionValue, overlay.spellID) or overlay.spellID
+	end
+
 	-- 1. Affichage de la stat centrale choisie dans les options
 	if db.showDamage and overlay.parsed then
-		local resolvedID = (ns.ManaCalc and ns.ManaCalc.ResolveSpellID) and ns.ManaCalc.ResolveSpellID(slot, overlay.spellID) or overlay.spellID
 		local text, r, g, b = FormatCenterStat(overlay.parsed, resolvedID, db)
 		overlay.dmgText:SetText(text)
 		overlay.dmgText:SetTextColor(r, g, b)
@@ -184,8 +255,13 @@ local function UpdateButton(button, onlyMana)
 
 	-- 2. Affichage du nombre de lancers possibles avec la ressource actuelle
 	if db.showCasts then
-		local casts, _, _, isSecret, secretColor = ns.ManaCalc.GetRemainingCasts(slot, overlay.spellID)
-		RenderCastsText(overlay, casts, isSecret, secretColor, prevSlot == slot)
+		local casts, _, _, isSecret, secretColor
+		if actionKind == "action" then
+			casts, _, _, isSecret, secretColor = ns.ManaCalc.GetRemainingCasts(actionValue, overlay.spellID)
+		else
+			casts, _, _, isSecret, secretColor = ns.ManaCalc.GetRemainingCastsForSpell(resolvedID)
+		end
+		RenderCastsText(overlay, casts, isSecret, secretColor, sameAction)
 	else
 		overlay.lastCasts = nil
 		overlay.castsText:SetText("")
@@ -212,7 +288,7 @@ local function RegisterButton(button)
 		container = container,
 		dmgText = CreateOverlayFontString(container, "CENTER", 0, 0, db and db.centerFontSize or 11),
 		castsText = CreateOverlayFontString(container, "BOTTOMRIGHT", -3, 3, db and db.castsFontSize or 10),
-		slot = nil,
+		actionKey = nil,
 		spellID = nil,
 		parsed = nil,
 	}
@@ -244,8 +320,41 @@ function ns.RefreshOverlayFonts()
 	end
 end
 
+local function HookLibActionButton(libName)
+	if not LibStub then
+		return
+	end
+
+	local lab = LibStub(libName, true)
+	if not lab then
+		return
+	end
+
+	if lab.GetAllButtons then
+		for button in pairs(lab:GetAllButtons()) do
+			RegisterButton(button)
+		end
+	end
+
+	if not hookedLibs[lab] then
+		hookedLibs[lab] = true
+		if lab.RegisterCallback then
+			local token = "CastMetrics_" .. libName
+			lab.RegisterCallback(token, "OnButtonCreated", function(_, button)
+				RegisterButton(button)
+			end)
+			lab.RegisterCallback(token, "OnButtonUpdate", function(_, button)
+				RegisterButton(button)
+				UpdateButton(button, false)
+			end)
+		end
+	end
+end
+
+local blizzardEventsHooked = false
+
 function ns.InitButtonOverlays()
-	-- 1. Méthode moderne : récupérer les boutons enregistrés dans ActionBarButtonEventsFrame
+	-- 1. Méthode moderne Blizzard : boutons enregistrés dans ActionBarButtonEventsFrame
 	if ActionBarButtonEventsFrame then
 		if ActionBarButtonEventsFrame.frames then
 			for _, button in pairs(ActionBarButtonEventsFrame.frames) do
@@ -253,20 +362,34 @@ function ns.InitButtonOverlays()
 			end
 		end
 
-		if ActionBarButtonEventsFrame.RegisterFrame then
+		if not blizzardEventsHooked and ActionBarButtonEventsFrame.RegisterFrame then
+			blizzardEventsHooked = true
 			hooksecurefunc(ActionBarButtonEventsFrame, "RegisterFrame", function(_, button)
 				RegisterButton(button)
 			end)
 		end
 	end
 
-	-- 2. Fallback par noms globaux (_G) pour couvrir toutes les barres standards
+	-- 2. Fallback par noms globaux (_G) pour les barres Blizzard standards
 	for _, prefix in ipairs(BAR_PREFIXES) do
 		for i = 1, 12 do
 			local button = _G[prefix .. i]
 			if button then
 				RegisterButton(button)
 			end
+		end
+	end
+
+	-- 3. Addons tiers basés sur LibActionButton-1.0 (Bartender4, ElvUI, etc.)
+	for _, libName in ipairs(LAB_LIBRARIES) do
+		HookLibActionButton(libName)
+	end
+
+	-- 4. Fallback explicite pour les boutons Bartender4 (BT4Button1..180)
+	for i = 1, 180 do
+		local button = _G["BT4Button" .. i]
+		if button then
+			RegisterButton(button)
 		end
 	end
 end

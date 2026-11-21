@@ -31,6 +31,7 @@
     "GetSpellCritChance",
     "HasAction",
     "InCombatLockdown",
+    "LibStub",
     "MinimalSliderWithSteppersMixin",
     "SLASH_CASTMETRICS1",
     "SLASH_CASTMETRICS2",

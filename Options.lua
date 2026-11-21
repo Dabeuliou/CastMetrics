@@ -186,13 +186,7 @@ function ns.RefreshOptionsPreview()
 	previewBox.spellLabel:SetText(name)
 
 	-- Lecture du tooltip du sort pour alimenter l'aperçu
-	local parsed = nil
-	if C_TooltipInfo and C_TooltipInfo.GetSpellByID then
-		local tooltipData = C_TooltipInfo.GetSpellByID(spellID)
-		if tooltipData and not ns.IsSecret(tooltipData) and tooltipData.lines then
-			parsed = ns.TooltipParser.ParseLines(tooltipData.lines)
-		end
-	end
+	local parsed = ns.TooltipParser.GetSpellValues and ns.TooltipParser.GetSpellValues(spellID) or nil
 
 	if db.showDamage and parsed and ns.FormatCenterStat then
 		local text, r, g, b = ns.FormatCenterStat(parsed, spellID, db)

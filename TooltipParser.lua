@@ -315,13 +315,7 @@ function TooltipParser.ParseLines(lines)
 	return nil, hadSecret
 end
 
--- Interroge C_TooltipInfo.GetAction(slot) et retourne (parsedResult, tooltipSpellID, hadSecret)
-function TooltipParser.GetActionValues(slot)
-	if not C_TooltipInfo or not C_TooltipInfo.GetAction then
-		return nil, nil, false
-	end
-
-	local tooltipData = C_TooltipInfo.GetAction(slot)
+local function ExtractTooltipValues(tooltipData)
 	if not tooltipData then
 		return nil, nil, false
 	end
@@ -332,4 +326,20 @@ function TooltipParser.GetActionValues(slot)
 	local spellID = (tooltipData.id and not ns.IsSecret(tooltipData.id)) and tooltipData.id or nil
 	local parsed, hadSecret = TooltipParser.ParseLines(tooltipData.lines)
 	return parsed, spellID, hadSecret
+end
+
+-- Interroge C_TooltipInfo.GetAction(slot) et retourne (parsedResult, tooltipSpellID, hadSecret)
+function TooltipParser.GetActionValues(slot)
+	if not C_TooltipInfo or not C_TooltipInfo.GetAction then
+		return nil, nil, false
+	end
+	return ExtractTooltipValues(C_TooltipInfo.GetAction(slot))
+end
+
+-- Interroge C_TooltipInfo.GetSpellByID(spellID) et retourne (parsedResult, tooltipSpellID, hadSecret)
+function TooltipParser.GetSpellValues(spellID)
+	if not spellID or not C_TooltipInfo or not C_TooltipInfo.GetSpellByID then
+		return nil, nil, false
+	end
+	return ExtractTooltipValues(C_TooltipInfo.GetSpellByID(spellID))
 end

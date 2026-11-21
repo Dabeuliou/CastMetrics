@@ -57,39 +57,62 @@ local function PrintHelp()
 	print("  |cffffd100/cm debug [slot]|r - Inspecter le tooltip d'un slot (ou bouton survolé)")
 end
 
-local function GetHoveredActionSlot()
-	-- Client moderne : GetMouseFoci() renvoie une liste de frames sous le curseur
+local function GetHoveredAction()
+	-- Client moderne : GetMouseFoci() renvoie une liste de frames sous le curseur (y compris Bartender4 / ElvUI)
 	if GetMouseFoci then
 		local foci = GetMouseFoci()
 		if foci then
 			for _, frame in ipairs(foci) do
-				if frame.action and type(frame.action) == "number" and not ns.IsSecret(frame.action) then
-					return frame.action
+				if ns.GetButtonAction then
+					local kind, value = ns.GetButtonAction(frame)
+					if kind then
+						return kind, value
+					end
+				elseif frame.action and type(frame.action) == "number" and not ns.IsSecret(frame.action) then
+					return "action", frame.action
 				end
 			end
 		end
 	elseif GetMouseFocus then
 		local frame = GetMouseFocus()
-		if frame and frame.action and type(frame.action) == "number" and not ns.IsSecret(frame.action) then
-			return frame.action
+		if frame then
+			if ns.GetButtonAction then
+				local kind, value = ns.GetButtonAction(frame)
+				if kind then
+					return kind, value
+				end
+			elseif frame.action and type(frame.action) == "number" and not ns.IsSecret(frame.action) then
+				return "action", frame.action
+			end
 		end
 	end
-	return 1
+	return "action", 1
 end
 
 local function RunDebug(slotArg)
-	local slot = tonumber(slotArg) or GetHoveredActionSlot()
-	print(string.format("|cff00ccff[CastMetrics Debug]|r Inspection du slot %d (Retail=%s) :", slot, tostring(ns.IS_RETAIL)))
-
-	if not HasAction(slot) then
-		print("  Aucune action dans ce slot.")
-		return
+	local actionKind, actionValue
+	local explicitSlot = tonumber(slotArg)
+	if explicitSlot then
+		actionKind, actionValue = "action", explicitSlot
+	else
+		actionKind, actionValue = GetHoveredAction()
 	end
 
-	local actionType, id = GetActionInfo(slot)
-	print(string.format("  GetActionInfo: type=%s, id=%s", tostring(actionType), tostring(id)))
+	print(string.format("|cff00ccff[CastMetrics Debug]|r Inspection %s=%s (Retail=%s) :", tostring(actionKind), tostring(actionValue), tostring(ns.IS_RETAIL)))
 
-	local tooltipData = C_TooltipInfo and C_TooltipInfo.GetAction(slot)
+	if actionKind == "action" then
+		if not HasAction(actionValue) then
+			print("  Aucune action dans ce slot.")
+			return
+		end
+
+		local actionType, id = GetActionInfo(actionValue)
+		print(string.format("  GetActionInfo: type=%s, id=%s", tostring(actionType), tostring(id)))
+	end
+
+	local tooltipData = (actionKind == "action")
+			and (C_TooltipInfo and C_TooltipInfo.GetAction(actionValue))
+		or (C_TooltipInfo and C_TooltipInfo.GetSpellByID and C_TooltipInfo.GetSpellByID(actionValue))
 	if tooltipData and not ns.IsSecret(tooltipData) and tooltipData.lines and not ns.IsSecret(tooltipData.lines) then
 		local tid = (tooltipData.id and not ns.IsSecret(tooltipData.id)) and tostring(tooltipData.id) or "<secret>"
 		print(string.format("  tooltipData.id=%s, lignes=%d", tid, #tooltipData.lines))
@@ -101,17 +124,28 @@ local function RunDebug(slotArg)
 			end
 		end
 	else
-		print("  C_TooltipInfo.GetAction(slot) n'a retourné aucune donnée exploitable.")
+		print("  C_TooltipInfo n'a retourné aucune donnée exploitable.")
 	end
 
-	local parsed, spellID = ns.TooltipParser.GetActionValues(slot)
+	local parsed, spellID
+	if actionKind == "action" then
+		parsed, spellID = ns.TooltipParser.GetActionValues(actionValue)
+	else
+		parsed, spellID = ns.TooltipParser.GetSpellValues(actionValue)
+		spellID = spellID or actionValue
+	end
 	if parsed then
 		print(string.format("  Parser -> kind=%s, min=%d, max=%d, avg=%d", parsed.kind, parsed.min, parsed.max, parsed.avg))
 	else
 		print("  Parser -> aucune valeur détectée.")
 	end
 
-	local casts, cost, powerType, isSecret = ns.ManaCalc.GetRemainingCasts(slot, spellID)
+	local casts, cost, powerType, isSecret
+	if actionKind == "action" then
+		casts, cost, powerType, isSecret = ns.ManaCalc.GetRemainingCasts(actionValue, spellID)
+	else
+		casts, cost, powerType, isSecret = ns.ManaCalc.GetRemainingCastsForSpell(spellID)
+	end
 	local castsStr = isSecret and (casts ~= nil and "<secret-curve>" or "nil") or tostring(casts)
 	print(string.format(
 		"  ManaCalc -> spellID=%s, cost=%s, powerType=%s, casts=%s, secret=%s",
@@ -231,6 +265,9 @@ function events.ADDON_LOADED(loadedAddon)
 end
 
 function events.PLAYER_ENTERING_WORLD()
+	if ns.InitButtonOverlays then
+		ns.InitButtonOverlays()
+	end
 	if ns.ManaCalc and ns.ManaCalc.CacheMaxPowers then
 		ns.ManaCalc.CacheMaxPowers()
 	end

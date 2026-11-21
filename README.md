@@ -4,6 +4,7 @@ Addon inspiré de **DrDamage** pour **World of Warcraft Retail** (`Interface: 12
 
 ## Fonctionnalités
 
+- **Compatible barres natives & addons de barres** : fonctionne avec les barres Blizzard, **Bartender4**, **ElvUI** (`LibActionButton-1.0`) et **Dominos**.
 - **Statistique personnalisable centrée sur le bouton** : lue dynamiquement depuis le tooltip (`C_TooltipInfo.GetAction`), en cumulant dégâts/soins directs et effets sur la durée (DoT / HoT).
   - Or/orange pour les dégâts, vert pour les soins.
 - **Nombre de lancers possibles en bas à droite du bouton** : calculé selon la ressource du sort (Mana, Rage, Énergie, Focalisation, Essence…), avec prise en charge des *secret values* via `UnitPowerPercent` + `C_CurveUtil`.
