@@ -1,5 +1,6 @@
 ## Interface: 120105, 16001
 ## Title: CastMetrics
+## Author: Dabeuliou
 ## Notes: Displays spell damage/healing, efficiency (DPM/DPS) and remaining casts on your action buttons and tooltips (Retail & Forever).
 ## Notes-frFR: Affiche les degats/soins, l'efficacite (DPM/DPS) et les lancers restants sur vos boutons d'action et tooltips (Retail & Forever).
 ## Notes-deDE: Zeigt Zauberschaden/-heilung, Effizienz (DPM/DPS) und verbleibende Zauber auf Aktionsbuttons und in Tooltips (Retail & Forever).

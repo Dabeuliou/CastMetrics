@@ -38,11 +38,11 @@ $StagingAddonDir = Join-Path $StagingRoot $AddonName
 New-Item -ItemType Directory -Path $StagingAddonDir -Force | Out-Null
 
 try {
-    # Copie les fichiers de l'addon + README.md (en conservant les sous-dossiers comme Locales\)
+    # Copie les fichiers de l'addon + README.md / LICENSE (en conservant les sous-dossiers comme Locales\)
     # pour que vos amis n'aient qu'a extraire l'archive dans Interface\AddOns\
     $FilesToPack = Get-ChildItem -LiteralPath $SourceDir -Recurse -File | Where-Object {
-        ($_.Extension -in @(".toc", ".lua", ".xml") -or $_.Name -eq "README.md") -and
-        $_.FullName -notmatch "[\\/](?:\.git|\.vscode|dist|tests)[\\/]"
+        ($_.Extension -in @(".toc", ".lua", ".xml") -or $_.Name -in @("README.md", "LICENSE")) -and
+        $_.FullName -notmatch "[\\/](?:\.git|\.vscode|dist|tests|assets)[\\/]"
     }
 
     foreach ($File in $FilesToPack) {

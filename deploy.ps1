@@ -21,7 +21,7 @@ if ($Target -in @("all", "forever")) {
 
 $FilesToCopy = Get-ChildItem -LiteralPath $SourceDir -Recurse -File | Where-Object {
     $_.Extension -in @(".toc", ".lua", ".xml") -and
-    $_.FullName -notmatch "[\\/](?:\.git|\.vscode|dist|tests)[\\/]"
+    $_.FullName -notmatch "[\\/](?:\.git|\.vscode|dist|tests|assets)[\\/]"
 }
 
 $DeployedCount = 0
