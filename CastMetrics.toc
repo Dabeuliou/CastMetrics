@@ -1,9 +1,18 @@
 ## Interface: 120105, 16001
 ## Title: CastMetrics
-## Notes: Affiche les degats/soins, l'efficacite (DPM/DPS) et les lancers restants sur vos boutons d'action et tooltips (Retail & Forever).
-## Version: 1.2.1
+## Notes: Displays spell damage/healing, efficiency (DPM/DPS) and remaining casts on your action buttons and tooltips (Retail & Forever).
+## Notes-frFR: Affiche les degats/soins, l'efficacite (DPM/DPS) et les lancers restants sur vos boutons d'action et tooltips (Retail & Forever).
+## Notes-deDE: Zeigt Zauberschaden/-heilung, Effizienz (DPM/DPS) und verbleibende Zauber auf Aktionsbuttons und in Tooltips (Retail & Forever).
+## Notes-esES: Muestra el daño/sanación, eficiencia (DPM/DPS) y lanzamientos restantes en tus botones de acción y tooltips (Retail & Forever).
+## Notes-esMX: Muestra el daño/sanación, eficiencia (DPM/DPS) y lanzamientos restantes en tus botones de acción y tooltips (Retail & Forever).
+## Version: 1.3.0
 ## SavedVariables: CastMetricsDB
 
+Locales\Locale.lua
+Locales\enUS.lua
+Locales\frFR.lua
+Locales\deDE.lua
+Locales\esES.lua
 Core.lua
 TooltipParser.lua
 ManaCalc.lua

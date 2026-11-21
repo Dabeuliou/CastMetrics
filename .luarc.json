@@ -25,6 +25,7 @@
     "GetComboPoints",
     "GetCritChance",
     "GetHaste",
+    "GetLocale",
     "GetMacroSpell",
     "GetMouseFoci",
     "GetMouseFocus",

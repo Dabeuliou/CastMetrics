@@ -47,14 +47,15 @@ local function ApplyDefaults(dst, src)
 end
 
 local function PrintHelp()
-	print("|cff00ccff[CastMetrics]|r Commandes disponibles :")
-	print("  |cffffd100/cm config|r - Ouvrir le panneau d'options graphique")
-	print("  |cffffd100/cm dmg|r - Afficher / masquer la stat centrale")
-	print("  |cffffd100/cm casts|r - Afficher / masquer le nombre de lancers (ressource)")
-	print("  |cffffd100/cm tooltip|r - Afficher / masquer les stats (DPM, HPM, DPS) dans le tooltip")
-	print("  |cffffd100/cm mode|r - Basculer la stat centrale (avg / weighted / range / crit / dpm / dps)")
-	print("  |cffffd100/cm compact|r - Activer / désactiver le format court (1.4k)")
-	print("  |cffffd100/cm debug [slot]|r - Inspecter le tooltip d'un slot (ou bouton survolé)")
+	local L = ns.L
+	print("|cff00ccff[CastMetrics]|r " .. L["HELP_HEADER"])
+	print("  |cffffd100/cm config|r - " .. L["HELP_CONFIG"])
+	print("  |cffffd100/cm dmg|r - " .. L["HELP_DMG"])
+	print("  |cffffd100/cm casts|r - " .. L["HELP_CASTS"])
+	print("  |cffffd100/cm tooltip|r - " .. L["HELP_TOOLTIP"])
+	print("  |cffffd100/cm mode|r - " .. L["HELP_MODE"])
+	print("  |cffffd100/cm compact|r - " .. L["HELP_COMPACT"])
+	print("  |cffffd100/cm debug [slot]|r - " .. L["HELP_DEBUG"])
 end
 
 local function GetHoveredAction()
@@ -98,11 +99,12 @@ local function RunDebug(slotArg)
 		actionKind, actionValue = GetHoveredAction()
 	end
 
-	print(string.format("|cff00ccff[CastMetrics Debug]|r Inspection %s=%s (Retail=%s) :", tostring(actionKind), tostring(actionValue), tostring(ns.IS_RETAIL)))
+	local L = ns.L
+	print(string.format("|cff00ccff[CastMetrics Debug]|r " .. L["DEBUG_HEADER"], tostring(actionKind), tostring(actionValue), tostring(ns.IS_RETAIL), tostring(ns.LOCALE)))
 
 	if actionKind == "action" then
 		if not HasAction(actionValue) then
-			print("  Aucune action dans ce slot.")
+			print("  " .. L["DEBUG_EMPTY_SLOT"])
 			return
 		end
 
@@ -115,7 +117,7 @@ local function RunDebug(slotArg)
 		or (C_TooltipInfo and C_TooltipInfo.GetSpellByID and C_TooltipInfo.GetSpellByID(actionValue))
 	if tooltipData and not ns.IsSecret(tooltipData) and tooltipData.lines and not ns.IsSecret(tooltipData.lines) then
 		local tid = (tooltipData.id and not ns.IsSecret(tooltipData.id)) and tostring(tooltipData.id) or "<secret>"
-		print(string.format("  tooltipData.id=%s, lignes=%d", tid, #tooltipData.lines))
+		print(string.format("  tooltipData.id=%s, lines=%d", tid, #tooltipData.lines))
 		for i, line in ipairs(tooltipData.lines) do
 			if line and not ns.IsSecret(line) then
 				local left = (line.leftText and not ns.IsSecret(line.leftText)) and line.leftText or "<secret>"
@@ -125,7 +127,7 @@ local function RunDebug(slotArg)
 			end
 		end
 	else
-		print("  C_TooltipInfo n'a retourné aucune donnée exploitable.")
+		print("  " .. L["DEBUG_NO_TOOLTIP"])
 	end
 
 	local parsed, spellID
@@ -150,7 +152,7 @@ local function RunDebug(slotArg)
 			comboInfo
 		))
 	else
-		print("  Parser -> aucune valeur détectée.")
+		print("  " .. L["DEBUG_NO_PARSER_MATCH"])
 		if tooltipData and not ns.IsSecret(tooltipData) and tooltipData.lines and not ns.IsSecret(tooltipData.lines) then
 			for i, line in ipairs(tooltipData.lines) do
 				if line and not ns.IsSecret(line) and line.leftText and not ns.IsSecret(line.leftText) and line.leftText:find("%d") then
@@ -203,6 +205,7 @@ SlashCmdList["CASTMETRICS"] = function(msg)
 	-- string.match avec %S+ extrait les mots séparés par des espaces
 	local cmd, arg = msg:lower():match("^%s*(%S+)%s*(.-)%s*$")
 	local db = CastMetricsDB
+	local L = ns.L
 
 	if cmd == "config" or cmd == "options" then
 		if ns.OpenOptions then
@@ -210,15 +213,15 @@ SlashCmdList["CASTMETRICS"] = function(msg)
 		end
 	elseif cmd == "dmg" then
 		db.showDamage = not db.showDamage
-		print("|cff00ccff[CastMetrics]|r Stat centrale : " .. (db.showDamage and "ON" or "OFF"))
+		print("|cff00ccff[CastMetrics]|r " .. string.format(L["CMD_CENTER_STAT"], db.showDamage and L["STATE_ON"] or L["STATE_OFF"]))
 		ns.RequestUpdate(false)
 	elseif cmd == "casts" then
 		db.showCasts = not db.showCasts
-		print("|cff00ccff[CastMetrics]|r Nombre de casts : " .. (db.showCasts and "ON" or "OFF"))
+		print("|cff00ccff[CastMetrics]|r " .. string.format(L["CMD_CASTS"], db.showCasts and L["STATE_ON"] or L["STATE_OFF"]))
 		ns.RequestUpdate(true)
 	elseif cmd == "tooltip" then
 		db.showTooltipStats = not db.showTooltipStats
-		print("|cff00ccff[CastMetrics]|r Stats dans le tooltip : " .. (db.showTooltipStats and "ON" or "OFF"))
+		print("|cff00ccff[CastMetrics]|r " .. string.format(L["CMD_TOOLTIP"], db.showTooltipStats and L["STATE_ON"] or L["STATE_OFF"]))
 	elseif cmd == "mode" then
 		local order = { "avg", "weighted", "range", "crit", "dpm", "dps" }
 		local nextStat = order[1]
@@ -229,11 +232,11 @@ SlashCmdList["CASTMETRICS"] = function(msg)
 			end
 		end
 		db.centerStat = nextStat
-		print("|cff00ccff[CastMetrics]|r Stat centrale : " .. db.centerStat)
+		print("|cff00ccff[CastMetrics]|r " .. string.format(L["CMD_CENTER_STAT"], db.centerStat))
 		ns.RequestUpdate(false)
 	elseif cmd == "compact" then
 		db.compactNumbers = not db.compactNumbers
-		print("|cff00ccff[CastMetrics]|r Format compact : " .. (db.compactNumbers and "ON" or "OFF"))
+		print("|cff00ccff[CastMetrics]|r " .. string.format(L["CMD_COMPACT"], db.compactNumbers and L["STATE_ON"] or L["STATE_OFF"]))
 		ns.RequestUpdate(false)
 	elseif cmd == "debug" then
 		RunDebug(arg)

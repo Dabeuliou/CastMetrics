@@ -26,7 +26,7 @@ local function CollectPreviewSpells()
 				seen[spellID] = true
 				local spellInfo = (C_Spell and C_Spell.GetSpellInfo) and C_Spell.GetSpellInfo(spellID) or nil
 				local name = (spellInfo and not ns.IsSecret(spellInfo.name)) and spellInfo.name
-					or ("Sort #" .. tostring(spellID))
+					or string.format(ns.L["SPELL_FALLBACK_NAME"], tostring(spellID))
 				local subtext = (C_Spell and C_Spell.GetSpellSubtext) and C_Spell.GetSpellSubtext(spellID) or nil
 				if subtext and not ns.IsSecret(subtext) and subtext ~= "" then
 					name = name .. " (" .. subtext .. ")"
@@ -89,7 +89,7 @@ local function CreatePreviewBox(parent)
 
 	local header = box:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	header:SetPoint("TOPLEFT", box, "TOPLEFT", 12, -8)
-	header:SetText("|cff00ccffAperçu du bouton (en direct)|r")
+	header:SetText("|cff00ccff" .. ns.L["PREVIEW_HEADER"] .. "|r")
 
 	local btn = CreateFrame("Button", nil, box)
 	btn:SetSize(44, 44)
@@ -131,7 +131,7 @@ local function CreatePreviewBox(parent)
 	hintLabel:SetPoint("TOPLEFT", spellLabel, "BOTTOMLEFT", 0, -4)
 	hintLabel:SetPoint("RIGHT", box, "RIGHT", -12, 0)
 	hintLabel:SetJustifyH("LEFT")
-	hintLabel:SetText("Survolez le bouton d'exemple pour inspecter aussi son tooltip enrichi.")
+	hintLabel:SetText(ns.L["PREVIEW_HINT"])
 
 	box.previewBtn = btn
 	box.icon = icon
@@ -165,7 +165,7 @@ function ns.RefreshOptionsPreview()
 		previewBox.icon:SetTexture(134400) -- icône "?" standard
 		previewBox.overlay.dmgText:SetText("")
 		previewBox.overlay.castsText:SetText("")
-		previewBox.spellLabel:SetText("Aucun sort de dégâts/soins trouvé sur vos barres")
+		previewBox.spellLabel:SetText(ns.L["PREVIEW_NO_SPELL"])
 		return
 	end
 
@@ -178,7 +178,8 @@ function ns.RefreshOptionsPreview()
 	end
 	previewBox.icon:SetTexture((iconID and not ns.IsSecret(iconID)) and iconID or 134400)
 
-	local name = (spellInfo and not ns.IsSecret(spellInfo.name)) and spellInfo.name or ("Sort #" .. tostring(spellID))
+	local name = (spellInfo and not ns.IsSecret(spellInfo.name)) and spellInfo.name
+		or string.format(ns.L["SPELL_FALLBACK_NAME"], tostring(spellID))
 	local subtext = (C_Spell and C_Spell.GetSpellSubtext) and C_Spell.GetSpellSubtext(spellID) or nil
 	if subtext and not ns.IsSecret(subtext) and subtext ~= "" then
 		name = name .. " (" .. subtext .. ")"
@@ -273,19 +274,21 @@ local function RegisterSlider(category, varKey, label, tooltip, defaultValue, mi
 end
 
 local function GetCenterStatOptions()
+	local L = ns.L
 	local container = Settings.CreateControlTextContainer()
-	container:Add("avg", "Moyenne de base (Direct + DoT/HoT)")
-	container:Add("weighted", "Moyenne pondérée (avec % critique)")
-	container:Add("range", "Intervalle (Min-Max)")
-	container:Add("crit", "Coup critique estimé")
-	container:Add("dpm", "Efficacité (DPM / HPM / DPR)")
-	container:Add("dps", "DPS / HPS (par temps de cast)")
+	container:Add("avg", L["OPT_STAT_AVG"])
+	container:Add("weighted", L["OPT_STAT_WEIGHTED"])
+	container:Add("range", L["OPT_STAT_RANGE"])
+	container:Add("crit", L["OPT_STAT_CRIT"])
+	container:Add("dpm", L["OPT_STAT_DPM"])
+	container:Add("dps", L["OPT_STAT_DPS"])
 	return container:GetData()
 end
 
 local function GetPreviewSpellOptions()
+	local L = ns.L
 	local container = Settings.CreateControlTextContainer()
-	container:Add(0, "Automatique (1er sort des barres)")
+	container:Add(0, L["OPT_PREVIEW_AUTO"])
 
 	local spells = CollectPreviewSpells()
 	local currentID = CastMetricsDB and CastMetricsDB.previewSpellID or 0
@@ -301,7 +304,8 @@ local function GetPreviewSpellOptions()
 	-- Si un spellID sauvegardé n'est plus sur les barres, on le garde sélectionnable
 	if currentID and currentID > 0 and not foundCurrent then
 		local info = (C_Spell and C_Spell.GetSpellInfo) and C_Spell.GetSpellInfo(currentID) or nil
-		local fallbackName = (info and not ns.IsSecret(info.name)) and info.name or ("Sort #" .. tostring(currentID))
+		local fallbackName = (info and not ns.IsSecret(info.name)) and info.name
+			or string.format(L["SPELL_FALLBACK_NAME"], tostring(currentID))
 		container:Add(currentID, fallbackName)
 	end
 
@@ -313,6 +317,7 @@ function ns.InitOptions()
 		return
 	end
 
+	local L = ns.L
 	local category = Settings.RegisterVerticalLayoutCategory("CastMetrics")
 	optionsCategory = category
 
@@ -320,8 +325,8 @@ function ns.InitOptions()
 	RegisterCheckbox(
 		category,
 		"showDamage",
-		"Afficher la stat centrale",
-		"Affiche ou masque la valeur affichée au centre des boutons d'action.",
+		L["OPT_SHOW_DAMAGE"],
+		L["OPT_SHOW_DAMAGE_TT"],
 		true,
 		function()
 			ns.RequestUpdate(false)
@@ -332,7 +337,7 @@ function ns.InitOptions()
 		category,
 		"CM_centerStat",
 		GetVarType("String"),
-		"Statistique centrale",
+		L["OPT_CENTER_STAT"],
 		"avg",
 		function()
 			return (CastMetricsDB and CastMetricsDB.centerStat) or "avg"
@@ -349,14 +354,14 @@ function ns.InitOptions()
 		category,
 		centerStatSetting,
 		GetCenterStatOptions,
-		"Choisissez la statistique affichée au milieu de chaque bouton d'action."
+		L["OPT_CENTER_STAT_TT"]
 	)
 
 	RegisterSlider(
 		category,
 		"centerFontSize",
-		"Taille du texte central",
-		"Ajuste la taille de la police au centre du bouton (pratique pour lire un gros DPM ou DPS).",
+		L["OPT_CENTER_FONT_SIZE"],
+		L["OPT_CENTER_FONT_SIZE_TT"],
 		11,
 		8,
 		18,
@@ -372,8 +377,8 @@ function ns.InitOptions()
 	RegisterCheckbox(
 		category,
 		"showCasts",
-		"Afficher les lancers possibles",
-		"Affiche en bas à droite combien de fois vous pouvez lancer le sort avec votre ressource actuelle.",
+		L["OPT_SHOW_CASTS"],
+		L["OPT_SHOW_CASTS_TT"],
 		true,
 		function()
 			ns.RequestUpdate(true)
@@ -383,8 +388,8 @@ function ns.InitOptions()
 	RegisterSlider(
 		category,
 		"castsFontSize",
-		"Taille du compteur de lancers",
-		"Ajuste la taille de la police du compteur en bas à droite du bouton.",
+		L["OPT_CASTS_FONT_SIZE"],
+		L["OPT_CASTS_FONT_SIZE_TT"],
 		10,
 		8,
 		16,
@@ -400,8 +405,8 @@ function ns.InitOptions()
 	RegisterCheckbox(
 		category,
 		"compactNumbers",
-		"Format court des grands nombres (1.4k)",
-		"Abrège les nombres >= 1000 sur les boutons (ex: 1450 -> 1.4k).",
+		L["OPT_COMPACT_NUMBERS"],
+		L["OPT_COMPACT_NUMBERS_TT"],
 		true,
 		function()
 			ns.RequestUpdate(false)
@@ -411,8 +416,8 @@ function ns.InitOptions()
 	RegisterCheckbox(
 		category,
 		"showTooltipStats",
-		"Afficher les stats détaillées dans le tooltip",
-		"Ajoute la moyenne, le critique pondéré, le DPM/HPM et le DPS/HPS dans les info-bulles des sorts.",
+		L["OPT_SHOW_TOOLTIP_STATS"],
+		L["OPT_SHOW_TOOLTIP_STATS_TT"],
 		true
 	)
 
@@ -421,7 +426,7 @@ function ns.InitOptions()
 		category,
 		"CM_previewSpellID",
 		GetVarType("Number"),
-		"Sort d'aperçu",
+		L["OPT_PREVIEW_SPELL"],
 		0,
 		function()
 			return (CastMetricsDB and CastMetricsDB.previewSpellID) or 0
@@ -437,7 +442,7 @@ function ns.InitOptions()
 		category,
 		previewSpellSetting,
 		GetPreviewSpellOptions,
-		"Choisissez un de vos sorts pour prévisualiser vos réglages sur le bouton d'exemple ci-dessous."
+		L["OPT_PREVIEW_SPELL_TT"]
 	)
 
 	Settings.RegisterAddOnCategory(category)
@@ -469,7 +474,7 @@ end
 
 function ns.OpenOptions()
 	if InCombatLockdown and InCombatLockdown() then
-		print("|cff00ccff[CastMetrics]|r Impossible d'ouvrir les options en combat.")
+		print("|cff00ccff[CastMetrics]|r " .. ns.L["OPT_COMBAT_LOCKED"])
 		return
 	end
 	if Settings and Settings.OpenToCategory and optionsCategoryID then

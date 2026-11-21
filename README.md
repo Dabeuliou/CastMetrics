@@ -1,10 +1,11 @@
 # CastMetrics (WoW Retail & Forever)
 
-Addon inspiré de **DrDamage** pour **World of Warcraft Retail** (`Interface: 120105`) et **WoW Forever** (`Interface: 16001`), conçu aussi comme support d'apprentissage de **Lua**.
+Addon inspiré de **DrDamage** pour **World of Warcraft Retail** (`Interface: 120105`) et **WoW Forever** (`Interface: 16001`).
 
 ## Fonctionnalités
 
 - **Compatible barres natives & addons de barres** : fonctionne avec les barres Blizzard, **Bartender4**, **ElvUI** (`LibActionButton-1.0`) et **Dominos**.
+- **Multilingue (i18n)** : interface et parsing des tooltips adaptés automatiquement à la langue du client (`frFR`, `enUS`/`enGB`, `deDE`, `esES`/`esMX`, avec repli automatique vers l'anglais).
 - **Statistique personnalisable centrée sur le bouton** : lue dynamiquement depuis le tooltip (`C_TooltipInfo.GetAction`), en cumulant dégâts/soins directs et effets sur la durée (DoT / HoT), avec adaptation automatique au nombre de points de combo actuels (masquée à 0 point).
   - Or/orange pour les dégâts, vert pour les soins.
 - **Nombre de lancers possibles en bas à droite du bouton** : calculé selon la ressource du sort (Mana, Rage, Énergie, Focalisation, Essence…), avec prise en charge des *secret values* via `UnitPowerPercent` + `C_CurveUtil`.
@@ -36,12 +37,19 @@ Addon inspiré de **DrDamage** pour **World of Warcraft Retail** (`Interface: 12
 2. **Générer un `.zip` de partage** : `Ctrl+Shift+P` → **Tasks: Run Task** → **Packager le .zip de partage** (ou exécutez [package.ps1](package.ps1)).
    - Génère `dist\CastMetrics-v<version>.zip` prêt à être partagé (la version est lue automatiquement dans [CastMetrics.toc](CastMetrics.toc)).
 
-## Ce que chaque fichier vous apprend en Lua
+## Architecture
 
-1. `CastMetrics.toc` : manifeste multi-versions lu au démarrage par WoW (`Interface: 120105, 16001`, `SavedVariables`, ordre de chargement des scripts).
-2. `Core.lua` : namespace partagé (`local addonName, ns = ...`), détection d'édition (`WOW_PROJECT_ID`), tables de dispatch d'événements, commandes slash et anti-rebond (`C_Timer.After`).
-3. `TooltipParser.lua` : manipulation de chaînes et *pattern matching* Lua (`gsub`, `match`, `find`, `gmatch`), capture de groupes et normalisation UTF-8.
-4. `ManaCalc.lua` : interrogation des namespaces modernes `C_Spell` / `Enum.PowerType` et gestion des *secret values* avec `C_CurveUtil` + `UnitPowerPercent`.
-5. `TooltipStats.lua` : extension du tooltip natif via `TooltipDataProcessor.AddTooltipPostCall` (DPM, HPM, DPS, HPS, crit, Hâte).
-6. `ButtonOverlay.lua` : création de `FontString` sur les boutons d'action, `hooksecurefunc` (éviter le *taint*), tables associatives et mise en cache par bouton.
-7. `Options.lua` : création d'un panneau de configuration natif via l'API moderne `Settings` (`RegisterVerticalLayoutCategory`, `RegisterProxySetting`, `CreateCheckbox`, `CreateDropdown`, `CreateSlider`) et bouton d'aperçu en direct.
+- `CastMetrics.toc` : manifeste multi-versions (`Interface: 120105, 16001`), `SavedVariables` et ordre de chargement.
+- `Locales/` (`Locale.lua`, `enUS.lua`, `frFR.lua`, `deDE.lua`, `esES.lua`) : système i18n de l'interface et règles de parsing par langue.
+- `Core.lua` : initialisation, détection d'édition (`WOW_PROJECT_ID`), événements, commandes slash (`/cm`) et anti-rebond.
+- `TooltipParser.lua` : extraction des dégâts/soins (direct, DoT/HoT, paliers de points de combo) selon la locale du client.
+- `ManaCalc.lua` : calcul du coût en ressource et des lancers possibles (avec support des *secret values* via `UnitPowerPercent` + `C_CurveUtil`).
+- `TooltipStats.lua` : ajout des métriques détaillées (critique, moyenne pondérée, DPM/HPM, DPS/HPS) dans les info-bulles.
+- `ButtonOverlay.lua` : gestion des textes superposés sur les boutons Blizzard, **Bartender4**, **ElvUI** (`LibActionButton-1.0`) et **Dominos**.
+- `Options.lua` : panneau natif `Settings` et aperçu en direct.
+- `tests/` : corpus multi-classes Wowhead et scripts de validation du parseur (exclus du déploiement et du packaging).
+
+## Crédits
+
+- Inspiré par l'addon classique **DrDamage**.
+- Développé avec l'assistance d'**Antigravity** (Google DeepMind).

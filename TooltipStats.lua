@@ -4,19 +4,20 @@ local TooltipStats = {}
 ns.TooltipStats = TooltipStats
 
 local function GetEfficiencyLabels(isHeal, powerType)
+	local L = ns.L
 	local prefix = isHeal and "H" or "D"
 	if Enum and Enum.PowerType then
 		if powerType == Enum.PowerType.Mana then
-			return prefix .. "PM", "Mana"
+			return prefix .. "PM", L["RES_MANA"]
 		elseif powerType == Enum.PowerType.Rage then
-			return prefix .. "PR", "Rage"
+			return prefix .. "PR", L["RES_RAGE"]
 		elseif powerType == Enum.PowerType.Energy then
-			return prefix .. "PE", "Énergie"
+			return prefix .. "PE", L["RES_ENERGY"]
 		elseif powerType == Enum.PowerType.Focus then
-			return prefix .. "PF", "Focalisation"
+			return prefix .. "PF", L["RES_FOCUS"]
 		end
 	end
-	return prefix .. "PR", "Ress."
+	return prefix .. "PR", L["RES_GENERIC"]
 end
 
 local HEADER_TEXT = "|cff00ccffCastMetrics|r"
@@ -130,8 +131,9 @@ function TooltipStats.ComputeMetrics(parsed, spellID)
 		return nil
 	end
 
+	local L = ns.L
 	local isHeal = (parsed.kind == "heal")
-	local kindWord = isHeal and "Soins" or "Dégâts"
+	local kindWord = isHeal and L["WORD_HEALING"] or L["WORD_DAMAGE"]
 	local directAvg = (parsed.directMin + parsed.directMax) / 2
 	local dotAvg = (parsed.dotMin + parsed.dotMax) / 2
 	local cost, powerType = ns.ManaCalc.GetSpellResourceCost(spellID)
@@ -172,7 +174,7 @@ function TooltipStats.ComputeMetrics(parsed, spellID)
 	local gcd = GetEffectiveGCD(isEnergy)
 	local effectiveSec = math.max(castSec, gcd)
 	local perSecCode = isHeal and "HPS" or "DPS"
-	local castTag = (castSec > gcd) and string.format("%.1fs cast", castSec) or string.format("%.2gs GCD", gcd)
+	local castTag = (castSec > gcd) and string.format(L["TAG_CAST"], castSec) or string.format(L["TAG_GCD"], gcd)
 	local dps = weightedAvg / effectiveSec
 	local dotDps = (dotAvg > 0 and parsed.duration and parsed.duration > 0) and (dotAvg / parsed.duration) or nil
 
@@ -234,26 +236,30 @@ local function AppendSpellStats(tooltip, data)
 	tooltip:AddLine(" ")
 	tooltip:AddLine(HEADER_TEXT)
 
+	local L = ns.L
 	-- 1. Moyenne totale + décomposition Direct / Périodique si applicable
 	local cpTag = parsed.activeComboPoints
-			and string.format(" (%d pt%s)", parsed.activeComboPoints, parsed.activeComboPoints > 1 and "s" or "")
+			and string.format(
+				parsed.activeComboPoints > 1 and L["COMBO_PT_PLURAL"] or L["COMBO_PT_SINGULAR"],
+				parsed.activeComboPoints
+			)
 		or ""
 	if m.directAvg > 0 and m.dotAvg > 0 then
-		tooltip:AddDoubleLine(m.kindWord .. " totaux (moy.)" .. cpTag, string.format("%.1f", m.avg), lr, lg, lb, vr, vg, vb)
+		tooltip:AddDoubleLine(string.format(L["TT_TOTAL_AVG"], m.kindWord, cpTag), string.format("%.1f", m.avg), lr, lg, lb, vr, vg, vb)
 		local durText = parsed.duration and string.format(" (%gs)", parsed.duration) or ""
 		tooltip:AddDoubleLine(
-			"  Direct / Périodique",
+			L["TT_DIRECT_PERIODIC"],
 			string.format("%.1f + %.1f%s", m.directAvg, m.dotAvg, durText),
 			0.65, 0.65, 0.65, 0.9, 0.9, 0.9
 		)
 	elseif m.dotAvg > 0 and parsed.duration then
 		tooltip:AddDoubleLine(
-			string.format("%s totaux (%gs)%s", m.kindWord, parsed.duration, cpTag),
+			string.format(L["TT_TOTAL_DURATION"], m.kindWord, parsed.duration, cpTag),
 			string.format("%.1f", m.avg),
 			lr, lg, lb, vr, vg, vb
 		)
 	else
-		tooltip:AddDoubleLine(m.kindWord .. " moyens" .. cpTag, string.format("%.1f", m.avg), lr, lg, lb, vr, vg, vb)
+		tooltip:AddDoubleLine(string.format(L["TT_AVERAGE"], m.kindWord, cpTag), string.format("%.1f", m.avg), lr, lg, lb, vr, vg, vb)
 	end
 
 	-- 2. Coup critique et moyenne pondérée avec le % de critique réel
@@ -261,18 +267,18 @@ local function AppendSpellStats(tooltip, data)
 		local critTag = m.critPct and string.format("×%.1f | %.1f%%", m.critMult, m.critPct) or string.format("×%.1f", m.critMult)
 		if m.critDirect and m.dotAvg > 0 then
 			tooltip:AddDoubleLine(
-				string.format("Critique (%s)", critTag),
-				string.format("%.1f (total %.1f)", m.critDirect, m.critTotal or m.critDirect),
+				string.format(L["TT_CRIT"], critTag),
+				string.format(L["TT_CRIT_TOTAL_FMT"], m.critDirect, m.critTotal or m.critDirect),
 				lr, lg, lb, 1, 0.95, 0.55
 			)
 		elseif m.critDirect then
-			tooltip:AddDoubleLine(string.format("Critique (%s)", critTag), string.format("%.1f", m.critDirect), lr, lg, lb, 1, 0.95, 0.55)
+			tooltip:AddDoubleLine(string.format(L["TT_CRIT"], critTag), string.format("%.1f", m.critDirect), lr, lg, lb, 1, 0.95, 0.55)
 		elseif m.critTotal then
-			tooltip:AddDoubleLine(string.format("Critique max (%s)", critTag), string.format("%.1f", m.critTotal), lr, lg, lb, 1, 0.95, 0.55)
+			tooltip:AddDoubleLine(string.format(L["TT_CRIT_MAX"], critTag), string.format("%.1f", m.critTotal), lr, lg, lb, 1, 0.95, 0.55)
 		end
 
 		if m.critPct then
-			tooltip:AddDoubleLine("Moyenne pondérée (crit)", string.format("%.1f", m.weightedAvg), lr, lg, lb, vr, vg, vb)
+			tooltip:AddDoubleLine(L["TT_WEIGHTED_AVG"], string.format("%.1f", m.weightedAvg), lr, lg, lb, vr, vg, vb)
 		end
 	end
 
@@ -287,14 +293,14 @@ local function AppendSpellStats(tooltip, data)
 
 	tooltip:AddDoubleLine(
 		string.format("%s (%s)", m.perSecCode, m.castTag),
-		string.format("%.1f / s", m.dps),
+		string.format(L["TT_PER_SEC_VALUE"], m.dps),
 		lr, lg, lb, 1, 0.65, 0.25
 	)
 
 	if m.dotDps and parsed.duration then
 		tooltip:AddDoubleLine(
-			string.format("%s périodique (%gs)", m.perSecCode, parsed.duration),
-			string.format("%.1f / s", m.dotDps),
+			string.format(L["TT_PERIODIC_DPS"], m.perSecCode, parsed.duration),
+			string.format(L["TT_PER_SEC_VALUE"], m.dotDps),
 			lr, lg, lb, 0.85, 0.7, 0.4
 		)
 	end
@@ -305,7 +311,7 @@ local function AppendSpellStats(tooltip, data)
 		if currentPower and not ns.IsSecret(currentPower) then
 			local casts = math.floor(currentPower / m.cost)
 			tooltip:AddDoubleLine(
-				"Lancers possibles",
+				L["TT_REMAINING_CASTS"],
 				string.format("%d (%d / %d)", casts, currentPower, m.cost),
 				lr, lg, lb, 0.4, 0.85, 1
 			)

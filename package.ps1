@@ -38,15 +38,22 @@ $StagingAddonDir = Join-Path $StagingRoot $AddonName
 New-Item -ItemType Directory -Path $StagingAddonDir -Force | Out-Null
 
 try {
-    # Copie les fichiers de l'addon + README.md dans un sous-dossier CastMetrics/
+    # Copie les fichiers de l'addon + README.md (en conservant les sous-dossiers comme Locales\)
     # pour que vos amis n'aient qu'a extraire l'archive dans Interface\AddOns\
-    $FilesToPack = Get-ChildItem -LiteralPath $SourceDir -File | Where-Object {
-        $_.Extension -in @(".toc", ".lua", ".xml") -or $_.Name -eq "README.md"
+    $FilesToPack = Get-ChildItem -LiteralPath $SourceDir -Recurse -File | Where-Object {
+        ($_.Extension -in @(".toc", ".lua", ".xml") -or $_.Name -eq "README.md") -and
+        $_.FullName -notmatch "[\\/](?:\.git|\.vscode|dist|tests)[\\/]"
     }
 
     foreach ($File in $FilesToPack) {
-        Copy-Item -LiteralPath $File.FullName -Destination (Join-Path $StagingAddonDir $File.Name) -Force
-        Write-Host "  [+] $($File.Name)" -ForegroundColor Green
+        $RelativePath = $File.FullName.Substring($SourceDir.Length).TrimStart('\', '/')
+        $DestFile = Join-Path $StagingAddonDir $RelativePath
+        $DestParent = Split-Path -Path $DestFile -Parent
+        if (-not (Test-Path -LiteralPath $DestParent)) {
+            New-Item -ItemType Directory -Path $DestParent -Force | Out-Null
+        }
+        Copy-Item -LiteralPath $File.FullName -Destination $DestFile -Force
+        Write-Host "  [+] $RelativePath" -ForegroundColor Green
     }
 
     if (Test-Path -LiteralPath $ZipPath) {

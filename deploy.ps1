@@ -19,8 +19,9 @@ if ($Target -in @("all", "forever")) {
     $Destinations += @{ Label = "WoW Forever"; Path = $ForeverAddOnsDir }
 }
 
-$FilesToCopy = Get-ChildItem -LiteralPath $SourceDir -File | Where-Object {
-    $_.Extension -in @(".toc", ".lua", ".xml")
+$FilesToCopy = Get-ChildItem -LiteralPath $SourceDir -Recurse -File | Where-Object {
+    $_.Extension -in @(".toc", ".lua", ".xml") -and
+    $_.FullName -notmatch "[\\/](?:\.git|\.vscode|dist|tests)[\\/]"
 }
 
 $DeployedCount = 0
@@ -42,15 +43,21 @@ foreach ($Dest in $Destinations) {
         New-Item -ItemType Directory -Path $TargetDir | Out-Null
     }
 
-    # Nettoie les anciens fichiers .lua / .toc / .xml pour eviter les fichiers orphelins
-    Get-ChildItem -LiteralPath $TargetDir -File -ErrorAction SilentlyContinue | Where-Object {
+    # Nettoie les anciens fichiers .lua / .toc / .xml (y compris dans les sous-dossiers comme Locales\)
+    Get-ChildItem -LiteralPath $TargetDir -Recurse -File -ErrorAction SilentlyContinue | Where-Object {
         $_.Extension -in @(".toc", ".lua", ".xml")
     } | Remove-Item -Force
 
     Write-Host "[$($Dest.Label)] Deploiement vers : $TargetDir" -ForegroundColor Cyan
     foreach ($File in $FilesToCopy) {
-        Copy-Item -LiteralPath $File.FullName -Destination (Join-Path $TargetDir $File.Name) -Force
-        Write-Host "  [OK] $($File.Name)" -ForegroundColor Green
+        $RelativePath = $File.FullName.Substring($SourceDir.Length).TrimStart('\', '/')
+        $DestFile = Join-Path $TargetDir $RelativePath
+        $DestParent = Split-Path -Path $DestFile -Parent
+        if (-not (Test-Path -LiteralPath $DestParent)) {
+            New-Item -ItemType Directory -Path $DestParent -Force | Out-Null
+        }
+        Copy-Item -LiteralPath $File.FullName -Destination $DestFile -Force
+        Write-Host "  [OK] $RelativePath" -ForegroundColor Green
     }
 
     $DeployedCount++

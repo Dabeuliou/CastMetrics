@@ -3,11 +3,27 @@ local _, ns = ...
 local TooltipParser = {}
 ns.TooltipParser = TooltipParser
 
+local function GetRules()
+	return ns.GetParserLocale and ns.GetParserLocale() or nil
+end
+
+local function MatchesAny(text, patterns, plain)
+	if not patterns then
+		return false
+	end
+	for _, pat in ipairs(patterns) do
+		if text:find(pat, 1, plain) then
+			return true
+		end
+	end
+	return false
+end
+
 -- Normalise une ligne de tooltip pour faciliter le pattern matching en Lua :
 --   1) supprime les balises de couleur/texture/atlas WoW (|cAARRGGBB, |cnNAME:, |r, |T...|t, |A...|a)
 --   2) résout les balises de pluriel (|4singulier:pluriel; -> pluriel) et |n -> \n
 --   3) remplace les espaces insécables UTF-8 (\194\160 et \226\128\175) par un espace ASCII normal
---   4) fusionne les séparateurs de milliers (ex: "1 234" ou "1,234" -> "1234")
+--   4) fusionne les séparateurs de milliers selon la locale (ex: "1 234" FR, "1,234" EN, "1.234" DE/ES)
 local function NormalizeText(text)
 	local clean = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|cn[^:]+:", ""):gsub("|r", "")
 	clean = clean:gsub("|T[^|]*|t", ""):gsub("|A[^|]*|a", "")
@@ -15,9 +31,12 @@ local function NormalizeText(text)
 	clean = clean:gsub("|n", "\n")
 	clean = clean:gsub("\194\160", " "):gsub("\226\128\175", " ")
 
-	-- On boucle pour gérer les grands nombres (ex: 1 234 567) sans toucher aux décimales ("1,5 sec")
+	local rules = GetRules()
+	local thousandPattern = (rules and rules.thousandPattern) or "(%d)[ ,](%d%d%d)"
+
+	-- On boucle pour gérer les grands nombres (ex: 1 234 567) sans toucher aux décimales
 	while true do
-		local nextText, count = clean:gsub("(%d)[ ,](%d%d%d)", "%1%2")
+		local nextText, count = clean:gsub(thousandPattern, "%1%2")
 		clean = nextText
 		if count == 0 then
 			break
@@ -30,82 +49,50 @@ end
 TooltipParser.NormalizeText = NormalizeText
 
 -- Détermine si une ligne décrit des dégâts ou des soins réels (et non un buff de stats / changeforme)
-local function DetectLineKind(lowerText)
-	-- Ignore la nourriture et les boissons ("vous devez rester assis" / "must remain seated")
-	if lowerText:find("assis", 1, true) or lowerText:find("seated", 1, true) then
+local function DetectLineKind(lowerText, rules)
+	if not rules then
 		return nil
 	end
 
-	-- Vérification des soins (FR et EN) : un nombre suivi de "points de vie", ou un verbe de soin explicite
-	local padded = lowerText .. " "
-	if
-		padded:find("%d+%s+points?%s+de%s+vie")
-		or padded:find("soigne")
-		or padded:find("soins")
-		or padded:find("heals?[%s%p]")
-		or padded:find("healing")
-		or padded:find("restores?%s+%d+.-health")
-	then
-		return "heal"
+	if MatchesAny(lowerText, rules.ignoreLineWords, true) then
+		return nil
 	end
 
-	-- Vérification des dégâts (FR et EN) : un nombre suivi de "points de dégâts" / "damage", ou attaque d'arme
-	if
-		lowerText:find("%d+%s+points?%s+de%s+dégât")
-		or lowerText:find("%d+%s+points?%s+de%s+degat")
-		or lowerText:find("dégâts? de l'arme")
-		or lowerText:find("%d+[^%.]-damage")
-		or lowerText:find("weapon damage")
-	then
+	local padded = lowerText .. " "
+	if MatchesAny(padded, rules.healDetectPatterns, false) then
+		return "heal"
+	end
+	if MatchesAny(padded, rules.damageDetectPatterns, false) then
 		return "damage"
 	end
 
 	return nil
 end
 
-local SCHOOL_PATTERNS = {
-	{ school = 2, words = { "du sacré", "holy damage" } },
-	{ school = 3, words = { "de feu", "fire damage" } },
-	{ school = 4, words = { "de nature", "nature damage" } },
-	{ school = 5, words = { "de givre", "frost damage" } },
-	{ school = 6, words = { "d'ombre", "shadow damage" } },
-	{ school = 7, words = { "des arcanes", "arcane damage" } },
-	{ school = 1, words = { "physique", "saignement", "physical damage", "bleed", "de l'arme", "weapon damage" } },
-}
-
-local function DetectContextKind(lowerText)
-	if lowerText:find("assis", 1, true) or lowerText:find("seated", 1, true) then
+local function DetectContextKind(lowerText, rules)
+	if not rules or MatchesAny(lowerText, rules.ignoreLineWords, true) then
 		return nil
 	end
+
 	local padded = lowerText .. " "
-	if
-		padded:find("soigne")
-		or padded:find("soins")
-		or padded:find("points?%s+de%s+vie")
-		or padded:find("heals?[%s%p]")
-		or padded:find("healing")
-		or padded:find("restores?[%s%p].-health")
-	then
+	if MatchesAny(padded, rules.healContextWords, false) then
 		return "heal"
 	end
-	if
-		padded:find("dégât")
-		or padded:find("degat")
-		or padded:find("damage")
-		or padded:find("inflige")
-		or padded:find("deals?[%s%p]")
-	then
+	if MatchesAny(padded, rules.damageContextWords, false) then
 		return "damage"
 	end
+
 	return nil
 end
 
-local function DetectSchool(lowerText)
-	for _, entry in ipairs(SCHOOL_PATTERNS) do
-		for _, word in ipairs(entry.words) do
-			if lowerText:find(word, 1, true) then
-				return entry.school
-			end
+local function DetectSchool(lowerText, rules)
+	if not rules or not rules.schoolPatterns then
+		return nil
+	end
+
+	for _, entry in ipairs(rules.schoolPatterns) do
+		if MatchesAny(lowerText, entry.words, true) then
+			return entry.school
 		end
 	end
 	return nil
@@ -137,40 +124,6 @@ local function MakeResult(minVal, maxVal, kind, details)
 	}
 end
 
--- Liste ordonnée de motifs pour capturer tous les segments de dégâts/soins d'une ligne
--- (ex: dégâts directs + DoT sur Éclat lunaire, soin direct + HoT sur Rétablissement)
-local CHUNK_PATTERNS = {
-	-- Intervalles FR (toujours placés avant les motifs de valeur unique pour éviter une troncature)
-	{ pattern = "(%d+)%s+à%s+(%d+)%s+points?%s+de%s+dégâts?", kind = "damage", range = true },
-	{ pattern = "(%d+)%s+à%s+(%d+)%s+points?%s+de%s+degats?", kind = "damage", range = true },
-	{ pattern = "(%d+)%s+à%s+(%d+)%s+points?%s+de%s+vie", kind = "heal", range = true },
-	{ pattern = "(%d+)%s+à%s+(%d+)%s+points?%s+supplémentaires", useLineKind = true, range = true },
-	{ pattern = "(%d+)%s+à%s+(%d+)%s+supplémentaires", useLineKind = true, range = true },
-	{ pattern = "soigne[^%d%.]*(%d+)%s+à%s+(%d+)", kind = "heal", range = true, requiresLineKind = "heal" },
-	{ pattern = "pour%s+(%d+)%s+à%s+(%d+)", kind = "heal", range = true, requiresLineKind = "heal" },
-	-- Intervalles EN
-	{ pattern = "(%d+)%s+to%s+(%d+)[^%.]-damage", kind = "damage", range = true },
-	{ pattern = "heals?[^%d%.]*(%d+)%s+to%s+(%d+)", kind = "heal", range = true, requiresLineKind = "heal" },
-	{ pattern = "for%s+(%d+)%s+to%s+(%d+)", kind = "heal", range = true, requiresLineKind = "heal" },
-	{ pattern = "another%s+(%d+)%s+to%s+(%d+)", useLineKind = true, range = true },
-	-- Valeurs uniques FR
-	{ pattern = "(%d+)%s+points?%s+de%s+dégâts?", kind = "damage", range = false },
-	{ pattern = "(%d+)%s+points?%s+de%s+degats?", kind = "damage", range = false },
-	{ pattern = "dégâts? de l'arme[^%d]*plus%s+(%d+)", kind = "damage", range = false },
-	{ pattern = "(%d+)%s+points?%s+de%s+vie", kind = "heal", range = false },
-	{ pattern = "(%d+)%s+points?%s+supplémentaires", useLineKind = true, range = false },
-	{ pattern = "(%d+)%s+supplémentaires", useLineKind = true, range = false },
-	{ pattern = "pour%s+(%d+)%s+points?", kind = "heal", range = false, requiresLineKind = "heal" },
-	{ pattern = "soigne[^%d%.]*(%d+)", kind = "heal", range = false, requiresLineKind = "heal" },
-	-- Valeurs uniques EN
-	{ pattern = "(%d+)%s+%a+%s+damage", kind = "damage", range = false },
-	{ pattern = "(%d+)%s+damage", kind = "damage", range = false },
-	{ pattern = "weapon damage[^%d]*plus%s+(%d+)", kind = "damage", range = false },
-	{ pattern = "for%s+(%d+)%s+health", kind = "heal", range = false, requiresLineKind = "heal" },
-	{ pattern = "heals?[^%d%.]*(%d+)", kind = "heal", range = false, requiresLineKind = "heal" },
-	{ pattern = "another%s+(%d+)", useLineKind = true, range = false },
-}
-
 local function ParseDecimal(str)
 	if not str then
 		return nil
@@ -178,62 +131,103 @@ local function ParseDecimal(str)
 	return tonumber((str:gsub(",", ".")))
 end
 
--- Normalise "4 s" / "10,4 s" -> "4 sec" / "10,4 sec" sans toucher aux mots comme "spells"
-local function NormalizeDurationUnits(text)
-	return (text .. " "):gsub("(%d)%s+s([%s%p])", "%1 sec%2")
+-- Normalise les unités de durée locales ("4 s", "4 Sek.", "4 seg.") vers "sec"
+local function NormalizeDurationUnits(text, rules)
+	local out = text .. " "
+	if rules and rules.durationUnitPatterns then
+		for _, entry in ipairs(rules.durationUnitPatterns) do
+			out = out:gsub(entry.pattern, entry.replacement)
+		end
+	end
+	return out
 end
 
--- Si un segment indique "toutes les X sec pendant Y sec", multiplie par le nombre de ticks (entiers ou décimaux sous Hâte)
-local function GetTickMultiplier(lower, endIdx)
-	local after = NormalizeDurationUnits(lower:sub(endIdx + 1, endIdx + 64))
-	local clause = after:match("^[^%.,]+") or after
-
-	local interval, duration = clause:match("toutes les%s+([%d%.,]+)%s+sec.-pendant%s+([%d%.,]+)%s+sec")
-	if not interval then
-		interval, duration = clause:match("every%s+([%d%.,]+)%s+sec.-for%s+([%d%.,]+)%s+sec")
+-- Si un segment indique "toutes les X sec pendant Y sec", multiplie par le nombre de ticks
+local function GetTickMultiplier(lower, endIdx, rules)
+	if not rules then
+		return 1
 	end
 
-	if interval and duration then
-		local iv = ParseDecimal(interval)
-		local dur = ParseDecimal(duration)
-		if iv and dur and iv > 0 then
-			local ticks = math.floor((dur / iv) + 0.5)
-			if ticks >= 1 and ticks <= 60 then
-				return ticks
+	local after = NormalizeDurationUnits(lower:sub(endIdx + 1, endIdx + 64), rules)
+	local clause = after:match("^[^%.,]+") or after
+
+	if rules.intervalDurationPatterns then
+		for _, pat in ipairs(rules.intervalDurationPatterns) do
+			local interval, duration = clause:match(pat)
+			if interval and duration then
+				local iv = ParseDecimal(interval)
+				local dur = ParseDecimal(duration)
+				if iv and dur and iv > 0 then
+					local ticks = math.floor((dur / iv) + 0.5)
+					if ticks >= 1 and ticks <= 60 then
+						return ticks
+					end
+				end
 			end
 		end
 	end
 
-	local perSecDur = clause:match("toutes les%s+sec.-pendant%s+([%d%.,]+)%s+sec")
-		or clause:match("par sec.-pendant%s+([%d%.,]+)%s+sec")
-		or clause:match("every%s+sec.-for%s+([%d%.,]+)%s+sec")
-		or clause:match("per sec.-for%s+([%d%.,]+)%s+sec")
-	if perSecDur then
-		local dur = ParseDecimal(perSecDur)
-		if dur and dur >= 1 and dur <= 60 then
-			return dur
+	if rules.perSecDurationPatterns then
+		for _, pat in ipairs(rules.perSecDurationPatterns) do
+			local perSecDur = clause:match(pat)
+			if perSecDur then
+				local dur = ParseDecimal(perSecDur)
+				if dur and dur >= 1 and dur <= 60 then
+					return dur
+				end
+			end
 		end
 	end
 
 	return 1
 end
 
--- Détecte si le segment courant est périodique ("en 12 sec" / "en 10,4 s" / "over 10.4 sec" / "pendant 21 s")
--- sans déborder sur un effet secondaire (ex: "118 et Déchirure pendant 4 s")
-local function GetSegmentDuration(lower, endIdx)
-	local after = NormalizeDurationUnits(lower:sub(endIdx + 1, endIdx + 64))
-	local dur = after:match("^[^%.,%d]*en%s+([%d%.,]+)%s+sec")
-		or after:match("^[^%.,%d]*over%s+([%d%.,]+)%s+sec")
+-- Détecte si le segment courant est périodique sans déborder sur un effet secondaire (ex: "118 et Déchirure pendant 4 s")
+local function GetSegmentDuration(lower, startIdx, endIdx, rules)
+	if not rules then
+		return nil
+	end
 
-	if not dur then
-		local beforePendant, pendantDur = after:match("^([^%.,%d]*)pendant%s+([%d%.,]+)%s+sec")
-		if not beforePendant then
-			beforePendant, pendantDur = after:match("^([^%.,%d]*)for%s+([%d%.,]+)%s+sec")
+	local after = NormalizeDurationUnits(lower:sub(endIdx + 1, endIdx + 64), rules)
+	local dur = nil
+
+	if rules.overDurationPatterns then
+		for _, pat in ipairs(rules.overDurationPatterns) do
+			dur = after:match(pat)
+			if dur then
+				break
+			end
 		end
-		if pendantDur and beforePendant then
-			local paddedPrefix = " " .. beforePendant .. " "
-			if not paddedPrefix:find("%set%s+") and not paddedPrefix:find("%sand%s+") then
-				dur = pendantDur
+	end
+
+	if not dur and rules.forDurationPatterns then
+		for _, pat in ipairs(rules.forDurationPatterns) do
+			local beforePrefix, forDur = after:match(pat)
+			if forDur and beforePrefix then
+				local paddedPrefix = " " .. beforePrefix .. " "
+				local hasConjunction = false
+				if rules.conjunctionWords then
+					for _, word in ipairs(rules.conjunctionWords) do
+						if paddedPrefix:find("%s" .. word .. "%s+") then
+							hasConjunction = true
+							break
+						end
+					end
+				end
+				if not hasConjunction then
+					dur = forDur
+					break
+				end
+			end
+		end
+	end
+
+	if not dur and rules.beforeDurationPatterns and startIdx and startIdx > 1 then
+		local before = NormalizeDurationUnits(lower:sub(math.max(1, startIdx - 48), startIdx - 1), rules)
+		for _, pat in ipairs(rules.beforeDurationPatterns) do
+			dur = before:match(pat)
+			if dur then
+				break
 			end
 		end
 	end
@@ -245,36 +239,41 @@ local function GetSegmentDuration(lower, endIdx)
 		end
 	end
 
-	local _, tickDur = after:match("^[^%.,%d]*toutes les%s+([%d%.,]+)%s+sec.-pendant%s+([%d%.,]+)%s+sec")
-	if not tickDur then
-		_, tickDur = after:match("^[^%.,%d]*every%s+([%d%.,]+)%s+sec.-for%s+([%d%.,]+)%s+sec")
-	end
-	if tickDur then
-		local num = ParseDecimal(tickDur)
-		if num and num > 0 and num <= 120 then
-			return num
+	if rules.intervalDurationPatterns then
+		for _, pat in ipairs(rules.intervalDurationPatterns) do
+			local _, tickDur = after:match("^[^%.,%d]*" .. pat)
+			if tickDur then
+				local num = ParseDecimal(tickDur)
+				if num and num > 0 and num <= 120 then
+					return num
+				end
+			end
 		end
 	end
 
 	return nil
 end
 
--- Extrait min/max (en cumulant direct + DoT/HoT) depuis une ligne de texte
-function TooltipParser.ParseLine(rawText)
+-- Extrait min/max (en cumulant direct + DoT/HoT) depuis une ligne de texte selon la locale active
+function TooltipParser.ParseLine(rawText, fallbackKind)
 	-- IMPORTANT (WoW Forever / Midnight) : toujours tester ns.IsSecret() AVANT toute comparaison (==, etc.)
 	if not rawText or ns.IsSecret(rawText) or rawText == "" then
 		return nil
 	end
 
+	local rules = GetRules()
+	if not rules or not rules.chunkPatterns then
+		return nil
+	end
+
 	local text = NormalizeText(rawText)
 	local lower = text:lower()
-	local lineKind = DetectLineKind(lower)
+	local lineKind = DetectLineKind(lower, rules) or fallbackKind
 	if not lineKind then
 		return nil
 	end
-	local lineSchool = DetectSchool(lower)
+	local lineSchool = DetectSchool(lower, rules)
 
-	-- 1. Parcours séquentiel de gauche à droite pour cumuler tous les segments (ex: direct + DoT)
 	local totals = {}
 	local primaryKind = nil
 	local pos = 1
@@ -282,15 +281,15 @@ function TooltipParser.ParseLine(rawText)
 	while pos <= #lower do
 		local bestStart, bestEnd, bestMin, bestMax, bestKind
 
-		for _, spec in ipairs(CHUNK_PATTERNS) do
+		for _, spec in ipairs(rules.chunkPatterns) do
 			if not spec.requiresLineKind or spec.requiresLineKind == lineKind then
 				local s, e, c1, c2 = lower:find(spec.pattern, pos)
 				if s and (not bestStart or s < bestStart) then
 					bestStart = s
 					bestEnd = e
 					bestKind = spec.useLineKind and lineKind or spec.kind
-					bestMin = tonumber(c1)
-					bestMax = tonumber(spec.range and c2 or c1)
+					bestMin = ParseDecimal(c1)
+					bestMax = ParseDecimal(spec.range and c2 or c1)
 				end
 			end
 		end
@@ -304,10 +303,10 @@ function TooltipParser.ParseLine(rawText)
 				bestMin, bestMax = bestMax, bestMin
 			end
 
-			local mult = GetTickMultiplier(lower, bestEnd)
+			local mult = GetTickMultiplier(lower, bestEnd, rules)
 			local segMin = bestMin * mult
 			local segMax = bestMax * mult
-			local segDuration = GetSegmentDuration(lower, bestEnd)
+			local segDuration = GetSegmentDuration(lower, bestStart, bestEnd, rules)
 
 			local bucket = totals[bestKind]
 			if not bucket then
@@ -365,10 +364,24 @@ local function GetCurrentComboPoints()
 end
 
 -- Parse une ligne de palier de points de combo (ex: "1 point : 118 et Déchirure pendant 4 s")
-local function ParseComboTierLine(rawSubLine, contextKind, contextSchool)
+local function ParseComboTierLine(rawSubLine, contextKind, contextSchool, rules)
+	if not rules then
+		return nil, nil
+	end
+
 	local text = NormalizeText(rawSubLine)
 	local lower = text:lower()
-	local cpStr, rest = lower:match("^%s*(%d+)%s+points?%s*:%s*(.+)$")
+	local cpStr, rest
+	if rules.comboLinePatterns then
+		for _, pat in ipairs(rules.comboLinePatterns) do
+			cpStr, rest = lower:match(pat)
+			if cpStr and rest then
+				break
+			end
+		end
+	elseif rules.comboLinePattern then
+		cpStr, rest = lower:match(rules.comboLinePattern)
+	end
 	if not cpStr or not rest then
 		return nil, nil
 	end
@@ -378,7 +391,7 @@ local function ParseComboTierLine(rawSubLine, contextKind, contextSchool)
 		return nil, nil
 	end
 
-	local parsed = TooltipParser.ParseLine(rest)
+	local parsed = TooltipParser.ParseLine(rest, contextKind)
 	if parsed then
 		if not parsed.school and contextSchool then
 			parsed.school = contextSchool
@@ -391,19 +404,22 @@ local function ParseComboTierLine(rawSubLine, contextKind, contextSchool)
 	end
 
 	local minVal, maxVal, endIdx
-	local s1, e1, a, b = rest:find("^(%d+)%s+à%s+(%d+)")
-	if not s1 then
-		s1, e1, a, b = rest:find("^(%d+)%s+to%s+(%d+)")
+	if rules.comboRangePatterns then
+		for _, pat in ipairs(rules.comboRangePatterns) do
+			local s1, e1, a, b = rest:find(pat)
+			if s1 then
+				minVal, maxVal, endIdx = ParseDecimal(a), ParseDecimal(b), e1
+				break
+			end
+		end
 	end
-	if not s1 then
-		s1, e1, a, b = rest:find("^(%d+)%s*%-%s*(%d+)")
-	end
-	if s1 then
-		minVal, maxVal, endIdx = tonumber(a), tonumber(b), e1
-	else
-		local s2, e2, v = rest:find("^(%d+)")
+
+	if not minVal then
+		local s2, e2, v = rest:find("^(%d+[%.,]?%d*)")
 		if s2 then
-			minVal, maxVal, endIdx = tonumber(v), tonumber(v), e2
+			minVal = ParseDecimal(v)
+			maxVal = minVal
+			endIdx = e2
 		end
 	end
 
@@ -414,13 +430,13 @@ local function ParseComboTierLine(rawSubLine, contextKind, contextSchool)
 		minVal, maxVal = maxVal, minVal
 	end
 
-	local mult = GetTickMultiplier(rest, endIdx)
+	local mult = GetTickMultiplier(rest, endIdx, rules)
 	local segMin = minVal * mult
 	local segMax = maxVal * mult
-	local segDuration = GetSegmentDuration(rest, endIdx)
+	local segDuration = GetSegmentDuration(rest, 1, endIdx, rules)
 
 	local details = {
-		school = DetectSchool(rest) or contextSchool,
+		school = DetectSchool(rest, rules) or contextSchool,
 		directMin = (segDuration or mult > 1) and 0 or segMin,
 		directMax = (segDuration or mult > 1) and 0 or segMax,
 		dotMin = (segDuration or mult > 1) and segMin or 0,
@@ -494,6 +510,9 @@ function TooltipParser.ParseLines(lines)
 		return nil, true
 	end
 
+	local rules = GetRules()
+	local comboHint = (rules and rules.comboHintWord) or "combo"
+
 	local hadSecret = false
 	local firstParsed = nil
 	local contextKind = nil
@@ -512,17 +531,17 @@ function TooltipParser.ParseLines(lines)
 			else
 				for subLine in NormalizeText(line.leftText):gmatch("[^\r\n]+") do
 					local lowerSub = subLine:lower()
-					if lowerSub:find("combo", 1, true) then
+					if lowerSub:find(comboHint, 1, true) then
 						sawComboHint = true
 					end
 					if not contextKind then
-						contextKind = DetectContextKind(lowerSub)
+						contextKind = DetectContextKind(lowerSub, rules)
 					end
 					if not contextSchool then
-						contextSchool = DetectSchool(lowerSub)
+						contextSchool = DetectSchool(lowerSub, rules)
 					end
 
-					local cp, tierResult = ParseComboTierLine(subLine, contextKind, contextSchool)
+					local cp, tierResult = ParseComboTierLine(subLine, contextKind, contextSchool, rules)
 					if cp and tierResult then
 						if not comboTiers[cp] then
 							comboCount = comboCount + 1
