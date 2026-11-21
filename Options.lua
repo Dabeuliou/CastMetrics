@@ -44,7 +44,7 @@ local function CollectPreviewSpells()
 end
 
 local function ResolvePreviewSpellID()
-	local db = CastsButtonDisplayDB
+	local db = CastMetricsDB
 	local chosen = db and db.previewSpellID or 0
 	if chosen and chosen > 0 then
 		return chosen
@@ -151,7 +151,7 @@ function ns.RefreshOptionsPreview()
 		return
 	end
 
-	local db = CastsButtonDisplayDB
+	local db = CastMetricsDB
 	if not db then
 		return
 	end
@@ -227,16 +227,16 @@ end
 local function RegisterCheckbox(category, varKey, label, tooltip, defaultValue, onChanged)
 	local setting = Settings.RegisterProxySetting(
 		category,
-		"CBD_" .. varKey,
+		"CM_" .. varKey,
 		GetVarType("Boolean"),
 		label,
 		defaultValue,
 		function()
-			return CastsButtonDisplayDB and CastsButtonDisplayDB[varKey]
+			return CastMetricsDB and CastMetricsDB[varKey]
 		end,
 		function(value)
-			if CastsButtonDisplayDB then
-				CastsButtonDisplayDB[varKey] = value
+			if CastMetricsDB then
+				CastMetricsDB[varKey] = value
 			end
 			if onChanged then
 				onChanged(value)
@@ -250,16 +250,16 @@ end
 local function RegisterSlider(category, varKey, label, tooltip, defaultValue, minVal, maxVal, step, onChanged)
 	local setting = Settings.RegisterProxySetting(
 		category,
-		"CBD_" .. varKey,
+		"CM_" .. varKey,
 		GetVarType("Number"),
 		label,
 		defaultValue,
 		function()
-			return (CastsButtonDisplayDB and CastsButtonDisplayDB[varKey]) or defaultValue
+			return (CastMetricsDB and CastMetricsDB[varKey]) or defaultValue
 		end,
 		function(value)
-			if CastsButtonDisplayDB then
-				CastsButtonDisplayDB[varKey] = value
+			if CastMetricsDB then
+				CastMetricsDB[varKey] = value
 			end
 			if onChanged then
 				onChanged(value)
@@ -294,7 +294,7 @@ local function GetPreviewSpellOptions()
 	container:Add(0, "Automatique (1er sort des barres)")
 
 	local spells = CollectPreviewSpells()
-	local currentID = CastsButtonDisplayDB and CastsButtonDisplayDB.previewSpellID or 0
+	local currentID = CastMetricsDB and CastMetricsDB.previewSpellID or 0
 	local foundCurrent = (currentID == 0)
 
 	for _, entry in ipairs(spells) do
@@ -319,7 +319,7 @@ function ns.InitOptions()
 		return
 	end
 
-	local category = Settings.RegisterVerticalLayoutCategory("CastsButtonDisplay")
+	local category = Settings.RegisterVerticalLayoutCategory("CastMetrics")
 	optionsCategory = category
 
 	-- 1. Statistique centrale sur le bouton
@@ -336,16 +336,16 @@ function ns.InitOptions()
 
 	local centerStatSetting = Settings.RegisterProxySetting(
 		category,
-		"CBD_centerStat",
+		"CM_centerStat",
 		GetVarType("String"),
 		"Statistique centrale",
 		"avg",
 		function()
-			return (CastsButtonDisplayDB and CastsButtonDisplayDB.centerStat) or "avg"
+			return (CastMetricsDB and CastMetricsDB.centerStat) or "avg"
 		end,
 		function(value)
-			if CastsButtonDisplayDB then
-				CastsButtonDisplayDB.centerStat = value
+			if CastMetricsDB then
+				CastMetricsDB.centerStat = value
 			end
 			ns.RequestUpdate(false)
 			ns.RefreshOptionsPreview()
@@ -425,16 +425,16 @@ function ns.InitOptions()
 	-- 4. Sélection du sort affiché dans le bouton d'exemple
 	local previewSpellSetting = Settings.RegisterProxySetting(
 		category,
-		"CBD_previewSpellID",
+		"CM_previewSpellID",
 		GetVarType("Number"),
 		"Sort d'aperçu",
 		0,
 		function()
-			return (CastsButtonDisplayDB and CastsButtonDisplayDB.previewSpellID) or 0
+			return (CastMetricsDB and CastMetricsDB.previewSpellID) or 0
 		end,
 		function(value)
-			if CastsButtonDisplayDB then
-				CastsButtonDisplayDB.previewSpellID = value
+			if CastMetricsDB then
+				CastMetricsDB.previewSpellID = value
 			end
 			ns.RefreshOptionsPreview()
 		end
@@ -475,7 +475,7 @@ end
 
 function ns.OpenOptions()
 	if InCombatLockdown and InCombatLockdown() then
-		print("|cff00ccff[CastsButtonDisplay]|r Impossible d'ouvrir les options en combat.")
+		print("|cff00ccff[CastMetrics]|r Impossible d'ouvrir les options en combat.")
 		return
 	end
 	if Settings and Settings.OpenToCategory and optionsCategoryID then

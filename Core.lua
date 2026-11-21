@@ -15,7 +15,10 @@ local DEFAULT_DB = {
 	previewSpellID = 0, -- 0 = sélection automatique du premier sort trouvé sur les barres
 }
 
--- Vérifie si une valeur est protégée ("secret value") par le client moderne (WoW Forever 1.60.1+)
+-- Détection Retail (Mainline) vs WoW Forever / Classic+ (multiplicateurs critiques, DoTs, Hâte)
+ns.IS_RETAIL = (WOW_PROJECT_ID ~= nil and WOW_PROJECT_MAINLINE ~= nil and WOW_PROJECT_ID == WOW_PROJECT_MAINLINE)
+
+-- Vérifie si une valeur est protégée ("secret value") par le client moderne (Retail 12.x / Forever 16001)
 function ns.IsSecret(value)
 	return issecretvalue and issecretvalue(value) or false
 end
@@ -26,7 +29,7 @@ function ns.FormatNumber(value)
 		return ""
 	end
 
-	local db = CastsButtonDisplayDB
+	local db = CastMetricsDB
 	if db and db.compactNumbers and value >= 1000 then
 		return string.format("%.1fk", value / 1000)
 	end
@@ -44,14 +47,14 @@ local function ApplyDefaults(dst, src)
 end
 
 local function PrintHelp()
-	print("|cff00ccff[CastsButtonDisplay]|r Commandes disponibles :")
-	print("  |cffffd100/cbd config|r - Ouvrir le panneau d'options graphique")
-	print("  |cffffd100/cbd dmg|r - Afficher / masquer la stat centrale")
-	print("  |cffffd100/cbd casts|r - Afficher / masquer le nombre de lancers (ressource)")
-	print("  |cffffd100/cbd tooltip|r - Afficher / masquer les stats (DPM, HPM, DPS) dans le tooltip")
-	print("  |cffffd100/cbd mode|r - Basculer la stat centrale (avg / weighted / range / dpm / dps)")
-	print("  |cffffd100/cbd compact|r - Activer / désactiver le format court (1.4k)")
-	print("  |cffffd100/cbd debug [slot]|r - Inspecter le tooltip d'un slot (ou bouton survolé)")
+	print("|cff00ccff[CastMetrics]|r Commandes disponibles :")
+	print("  |cffffd100/cm config|r - Ouvrir le panneau d'options graphique")
+	print("  |cffffd100/cm dmg|r - Afficher / masquer la stat centrale")
+	print("  |cffffd100/cm casts|r - Afficher / masquer le nombre de lancers (ressource)")
+	print("  |cffffd100/cm tooltip|r - Afficher / masquer les stats (DPM, HPM, DPS) dans le tooltip")
+	print("  |cffffd100/cm mode|r - Basculer la stat centrale (avg / weighted / range / crit / dpm / dps)")
+	print("  |cffffd100/cm compact|r - Activer / désactiver le format court (1.4k)")
+	print("  |cffffd100/cm debug [slot]|r - Inspecter le tooltip d'un slot (ou bouton survolé)")
 end
 
 local function GetHoveredActionSlot()
@@ -76,7 +79,7 @@ end
 
 local function RunDebug(slotArg)
 	local slot = tonumber(slotArg) or GetHoveredActionSlot()
-	print(string.format("|cff00ccff[CBD Debug]|r Inspection du slot %d :", slot))
+	print(string.format("|cff00ccff[CastMetrics Debug]|r Inspection du slot %d (Retail=%s) :", slot, tostring(ns.IS_RETAIL)))
 
 	if not HasAction(slot) then
 		print("  Aucune action dans ce slot.")
@@ -118,20 +121,20 @@ local function RunDebug(slotArg)
 		castsStr,
 		tostring(isSecret)
 	))
-	local db = CastsButtonDisplayDB
+	local db = CastMetricsDB
 	if db then
 		print(string.format("  Options -> showDamage=%s, showCasts=%s, centerStat=%s", tostring(db.showDamage), tostring(db.showCasts), tostring(db.centerStat)))
 	end
 end
 
--- Gestionnaire des commandes slash (/cbd ou /castsbuttondisplay)
-SLASH_CASTSBUTTONDISPLAY1 = "/cbd"
-SLASH_CASTSBUTTONDISPLAY2 = "/castsbuttondisplay"
+-- Gestionnaire des commandes slash (/cm ou /castmetrics)
+SLASH_CASTMETRICS1 = "/cm"
+SLASH_CASTMETRICS2 = "/castmetrics"
 
-SlashCmdList["CASTSBUTTONDISPLAY"] = function(msg)
+SlashCmdList["CASTMETRICS"] = function(msg)
 	-- string.match avec %S+ extrait les mots séparés par des espaces
 	local cmd, arg = msg:lower():match("^%s*(%S+)%s*(.-)%s*$")
-	local db = CastsButtonDisplayDB
+	local db = CastMetricsDB
 
 	if cmd == "config" or cmd == "options" then
 		if ns.OpenOptions then
@@ -139,15 +142,15 @@ SlashCmdList["CASTSBUTTONDISPLAY"] = function(msg)
 		end
 	elseif cmd == "dmg" then
 		db.showDamage = not db.showDamage
-		print("|cff00ccff[CastsButtonDisplay]|r Stat centrale : " .. (db.showDamage and "ON" or "OFF"))
+		print("|cff00ccff[CastMetrics]|r Stat centrale : " .. (db.showDamage and "ON" or "OFF"))
 		ns.RequestUpdate(false)
 	elseif cmd == "casts" then
 		db.showCasts = not db.showCasts
-		print("|cff00ccff[CastsButtonDisplay]|r Nombre de casts : " .. (db.showCasts and "ON" or "OFF"))
+		print("|cff00ccff[CastMetrics]|r Nombre de casts : " .. (db.showCasts and "ON" or "OFF"))
 		ns.RequestUpdate(true)
 	elseif cmd == "tooltip" then
 		db.showTooltipStats = not db.showTooltipStats
-		print("|cff00ccff[CastsButtonDisplay]|r Stats dans le tooltip : " .. (db.showTooltipStats and "ON" or "OFF"))
+		print("|cff00ccff[CastMetrics]|r Stats dans le tooltip : " .. (db.showTooltipStats and "ON" or "OFF"))
 	elseif cmd == "mode" then
 		local order = { "avg", "weighted", "range", "crit", "dpm", "dps" }
 		local nextStat = order[1]
@@ -158,11 +161,11 @@ SlashCmdList["CASTSBUTTONDISPLAY"] = function(msg)
 			end
 		end
 		db.centerStat = nextStat
-		print("|cff00ccff[CastsButtonDisplay]|r Stat centrale : " .. db.centerStat)
+		print("|cff00ccff[CastMetrics]|r Stat centrale : " .. db.centerStat)
 		ns.RequestUpdate(false)
 	elseif cmd == "compact" then
 		db.compactNumbers = not db.compactNumbers
-		print("|cff00ccff[CastsButtonDisplay]|r Format compact : " .. (db.compactNumbers and "ON" or "OFF"))
+		print("|cff00ccff[CastMetrics]|r Format compact : " .. (db.compactNumbers and "ON" or "OFF"))
 		ns.RequestUpdate(false)
 	elseif cmd == "debug" then
 		RunDebug(arg)
@@ -212,12 +215,12 @@ function events.ADDON_LOADED(loadedAddon)
 		return
 	end
 
-	-- Initialisation explicite recommandée sur WoW Forever 1.60.1
-	CastsButtonDisplayDB = CastsButtonDisplayDB or {}
-	if CastsButtonDisplayDB.centerStat == nil and CastsButtonDisplayDB.displayMode ~= nil then
-		CastsButtonDisplayDB.centerStat = CastsButtonDisplayDB.displayMode
+	-- Initialisation explicite recommandée sur Retail / WoW Forever
+	CastMetricsDB = CastMetricsDB or {}
+	if CastMetricsDB.centerStat == nil and CastMetricsDB.displayMode ~= nil then
+		CastMetricsDB.centerStat = CastMetricsDB.displayMode
 	end
-	ApplyDefaults(CastsButtonDisplayDB, DEFAULT_DB)
+	ApplyDefaults(CastMetricsDB, DEFAULT_DB)
 
 	if ns.InitOptions then
 		ns.InitOptions()

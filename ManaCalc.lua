@@ -47,6 +47,7 @@ if Enum and Enum.PowerType then
 		"Insanity",
 		"Fury",
 		"Pain",
+		"Essence",
 	}) do
 		if Enum.PowerType[key] then
 			PRIMARY_POWER_TYPES[Enum.PowerType[key]] = true

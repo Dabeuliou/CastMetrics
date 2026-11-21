@@ -4,7 +4,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$AddonName = "CastsButtonDisplay"
+$AddonName = "CastMetrics"
 $SourceDir = $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($OutputDir)) {
     $OutputDir = Join-Path $SourceDir "dist"
@@ -38,7 +38,7 @@ $StagingAddonDir = Join-Path $StagingRoot $AddonName
 New-Item -ItemType Directory -Path $StagingAddonDir -Force | Out-Null
 
 try {
-    # Copie les fichiers de l'addon + README.md dans un sous-dossier CastsButtonDisplay/
+    # Copie les fichiers de l'addon + README.md dans un sous-dossier CastMetrics/
     # pour que vos amis n'aient qu'a extraire l'archive dans Interface\AddOns\
     $FilesToPack = Get-ChildItem -LiteralPath $SourceDir -File | Where-Object {
         $_.Extension -in @(".toc", ".lua", ".xml") -or $_.Name -eq "README.md"
@@ -70,4 +70,4 @@ finally {
 $SizeKB = [Math]::Round((Get-Item -LiteralPath $ZipPath).Length / 1KB, 1)
 Write-Host ""
 Write-Host "Archive prete a partager ($SizeKB Ko) : $ZipPath" -ForegroundColor Cyan
-Write-Host "Installation pour vos amis : extraire le zip dans ...\World of Warcraft\_forever_\Interface\AddOns\" -ForegroundColor Yellow
+Write-Host "Installation pour vos amis : extraire le zip dans ...\World of Warcraft\_retail_\Interface\AddOns\ (ou _forever_)" -ForegroundColor Yellow

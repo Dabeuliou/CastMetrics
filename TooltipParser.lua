@@ -135,19 +135,26 @@ local CHUNK_PATTERNS = {
 	{ pattern = "another%s+(%d+)", kind = "heal", range = false, requiresLineKind = "heal" },
 }
 
--- Si un segment indique "toutes les X sec pendant Y sec", multiplie par le nombre de ticks
+local function ParseDecimal(str)
+	if not str then
+		return nil
+	end
+	return tonumber((str:gsub(",", ".")))
+end
+
+-- Si un segment indique "toutes les X sec pendant Y sec", multiplie par le nombre de ticks (entiers ou décimaux sous Hâte)
 local function GetTickMultiplier(lower, endIdx)
 	local after = lower:sub(endIdx + 1, endIdx + 64)
 	local clause = after:match("^[^%.,]+") or after
 
-	local interval, duration = clause:match("toutes les%s+(%d+)%s+sec.-pendant%s+(%d+)%s+sec")
+	local interval, duration = clause:match("toutes les%s+([%d%.,]+)%s+sec.-pendant%s+([%d%.,]+)%s+sec")
 	if not interval then
-		interval, duration = clause:match("every%s+(%d+)%s+sec.-for%s+(%d+)%s+sec")
+		interval, duration = clause:match("every%s+([%d%.,]+)%s+sec.-for%s+([%d%.,]+)%s+sec")
 	end
 
 	if interval and duration then
-		local iv = tonumber(interval)
-		local dur = tonumber(duration)
+		local iv = ParseDecimal(interval)
+		local dur = ParseDecimal(duration)
 		if iv and dur and iv > 0 then
 			local ticks = math.floor((dur / iv) + 0.5)
 			if ticks >= 1 and ticks <= 60 then
@@ -156,12 +163,12 @@ local function GetTickMultiplier(lower, endIdx)
 		end
 	end
 
-	local perSecDur = clause:match("toutes les%s+sec.-pendant%s+(%d+)%s+sec")
-		or clause:match("par sec.-pendant%s+(%d+)%s+sec")
-		or clause:match("every%s+sec.-for%s+(%d+)%s+sec")
-		or clause:match("per sec.-for%s+(%d+)%s+sec")
+	local perSecDur = clause:match("toutes les%s+sec.-pendant%s+([%d%.,]+)%s+sec")
+		or clause:match("par sec.-pendant%s+([%d%.,]+)%s+sec")
+		or clause:match("every%s+sec.-for%s+([%d%.,]+)%s+sec")
+		or clause:match("per sec.-for%s+([%d%.,]+)%s+sec")
 	if perSecDur then
-		local dur = tonumber(perSecDur)
+		local dur = ParseDecimal(perSecDur)
 		if dur and dur >= 1 and dur <= 60 then
 			return dur
 		end
@@ -170,27 +177,27 @@ local function GetTickMultiplier(lower, endIdx)
 	return 1
 end
 
--- Détecte si le segment courant est périodique ("en 12 sec" / "over 12 sec" / "pendant 12 sec")
+-- Détecte si le segment courant est périodique ("en 12 sec" / "en 10,4 sec" / "over 10.4 sec" / "pendant 21 sec")
 -- sans déborder sur un éventuel segment suivant (on s'arrête avant le prochain chiffre s'il n'est pas la durée)
 local function GetSegmentDuration(lower, endIdx)
 	local after = lower:sub(endIdx + 1, endIdx + 64)
-	local dur = after:match("^[^%.,%d]*en%s+(%d+)%s+sec")
-		or after:match("^[^%.,%d]*pendant%s+(%d+)%s+sec")
-		or after:match("^[^%.,%d]*over%s+(%d+)%s+sec")
-		or after:match("^[^%.,%d]*for%s+(%d+)%s+sec")
+	local dur = after:match("^[^%.,%d]*en%s+([%d%.,]+)%s+sec")
+		or after:match("^[^%.,%d]*pendant%s+([%d%.,]+)%s+sec")
+		or after:match("^[^%.,%d]*over%s+([%d%.,]+)%s+sec")
+		or after:match("^[^%.,%d]*for%s+([%d%.,]+)%s+sec")
 	if dur then
-		local num = tonumber(dur)
+		local num = ParseDecimal(dur)
 		if num and num > 0 and num <= 120 then
 			return num
 		end
 	end
 
-	local _, tickDur = after:match("^[^%.,%d]*toutes les%s+(%d+)%s+sec.-pendant%s+(%d+)%s+sec")
+	local _, tickDur = after:match("^[^%.,%d]*toutes les%s+([%d%.,]+)%s+sec.-pendant%s+([%d%.,]+)%s+sec")
 	if not tickDur then
-		_, tickDur = after:match("^[^%.,%d]*every%s+(%d+)%s+sec.-for%s+(%d+)%s+sec")
+		_, tickDur = after:match("^[^%.,%d]*every%s+([%d%.,]+)%s+sec.-for%s+([%d%.,]+)%s+sec")
 	end
 	if tickDur then
-		local num = tonumber(tickDur)
+		local num = ParseDecimal(tickDur)
 		if num and num > 0 and num <= 120 then
 			return num
 		end

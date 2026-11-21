@@ -150,7 +150,7 @@ local function UpdateButton(button, onlyMana)
 		return
 	end
 
-	local db = CastsButtonDisplayDB
+	local db = CastMetricsDB
 	if not db then
 		return
 	end
@@ -207,7 +207,7 @@ local function RegisterButton(button)
 	container:SetAllPoints(button)
 	container:SetFrameLevel((button:GetFrameLevel() or 1) + 5)
 
-	local db = CastsButtonDisplayDB
+	local db = CastMetricsDB
 	overlays[button] = {
 		container = container,
 		dmgText = CreateOverlayFontString(container, "CENTER", 0, 0, db and db.centerFontSize or 11),
@@ -234,7 +234,7 @@ function ns.UpdateAllButtons(onlyMana)
 end
 
 function ns.RefreshOverlayFonts()
-	local db = CastsButtonDisplayDB
+	local db = CastMetricsDB
 	if not db then
 		return
 	end

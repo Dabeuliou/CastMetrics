@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Deployer vers WoW Forever",
+      "label": "Deployer vers WoW (Retail + Forever)",
       "type": "shell",
       "command": "powershell.exe",
       "args": [
@@ -10,12 +10,58 @@
         "-ExecutionPolicy",
         "Bypass",
         "-File",
-        "${workspaceFolder}/deploy.ps1"
+        "${workspaceFolder}/deploy.ps1",
+        "-Target",
+        "all"
       ],
       "group": {
         "kind": "build",
         "isDefault": true
       },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Deployer vers WoW Retail uniquement",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/deploy.ps1",
+        "-Target",
+        "retail"
+      ],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Deployer vers WoW Forever uniquement",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/deploy.ps1",
+        "-Target",
+        "forever"
+      ],
       "presentation": {
         "echo": true,
         "reveal": "always",

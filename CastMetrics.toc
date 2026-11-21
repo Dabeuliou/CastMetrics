@@ -1,0 +1,12 @@
+## Interface: 120105, 16001
+## Title: CastMetrics
+## Notes: Affiche les degats/soins, l'efficacite (DPM/DPS) et les lancers restants sur vos boutons d'action et tooltips (Retail & Forever).
+## Version: 1.1.0
+## SavedVariables: CastMetricsDB
+
+Core.lua
+TooltipParser.lua
+ManaCalc.lua
+TooltipStats.lua
+ButtonOverlay.lua
+Options.lua
