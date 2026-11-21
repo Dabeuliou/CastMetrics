@@ -1,27 +1,28 @@
+---@diagnostic disable
 -- Standalone Lua 5.1 test runner for CastMetrics TooltipParser + Locales.
 -- Usage: lua tests/run_tests.lua
 
 local currentLocale = "enUS"
 local currentComboPoints = 3
 
-function GetLocale()
+_G["GetLocale"] = function()
 	return currentLocale
 end
 
-Enum = {
+_G["Enum"] = {
 	PowerType = {
 		ComboPoints = 4,
 	},
 }
 
-function UnitPower(_, powerType)
-	if powerType == Enum.PowerType.ComboPoints then
+_G["UnitPower"] = function(_, powerType)
+	if powerType == _G["Enum"].PowerType.ComboPoints then
 		return currentComboPoints
 	end
 	return 100
 end
 
-function issecretvalue()
+_G["issecretvalue"] = function(_)
 	return false
 end
 

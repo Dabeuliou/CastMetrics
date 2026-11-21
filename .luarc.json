@@ -3,7 +3,10 @@
   "runtime.version": "Lua 5.1",
   "workspace.ignoreDir": [
     ".git",
-    ".vscode"
+    ".vscode",
+    "assets",
+    "dist",
+    "tests"
   ],
   "diagnostics.globals": [
     "ActionBarButtonEventsFrame",
