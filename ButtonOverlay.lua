@@ -244,9 +244,14 @@ local function UpdateButton(button, onlyMana)
 		resolvedID = ns.ManaCalc.ResolveSpellID(actionValue, overlay.spellID) or overlay.spellID
 	end
 
+	local activeParsed = overlay.parsed
+	if activeParsed and activeParsed.comboTiers and ns.TooltipParser and ns.TooltipParser.ResolveComboTier then
+		activeParsed = ns.TooltipParser.ResolveComboTier(activeParsed, false)
+	end
+
 	-- 1. Affichage de la stat centrale choisie dans les options
-	if db.showDamage and overlay.parsed then
-		local text, r, g, b = FormatCenterStat(overlay.parsed, resolvedID, db)
+	if db.showDamage and activeParsed then
+		local text, r, g, b = FormatCenterStat(activeParsed, resolvedID, db)
 		overlay.dmgText:SetText(text)
 		overlay.dmgText:SetTextColor(r, g, b)
 	else

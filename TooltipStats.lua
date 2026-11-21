@@ -235,8 +235,11 @@ local function AppendSpellStats(tooltip, data)
 	tooltip:AddLine(HEADER_TEXT)
 
 	-- 1. Moyenne totale + décomposition Direct / Périodique si applicable
+	local cpTag = parsed.activeComboPoints
+			and string.format(" (%d pt%s)", parsed.activeComboPoints, parsed.activeComboPoints > 1 and "s" or "")
+		or ""
 	if m.directAvg > 0 and m.dotAvg > 0 then
-		tooltip:AddDoubleLine(m.kindWord .. " totaux (moy.)", string.format("%.1f", m.avg), lr, lg, lb, vr, vg, vb)
+		tooltip:AddDoubleLine(m.kindWord .. " totaux (moy.)" .. cpTag, string.format("%.1f", m.avg), lr, lg, lb, vr, vg, vb)
 		local durText = parsed.duration and string.format(" (%gs)", parsed.duration) or ""
 		tooltip:AddDoubleLine(
 			"  Direct / Périodique",
@@ -245,12 +248,12 @@ local function AppendSpellStats(tooltip, data)
 		)
 	elseif m.dotAvg > 0 and parsed.duration then
 		tooltip:AddDoubleLine(
-			string.format("%s totaux (%gs)", m.kindWord, parsed.duration),
+			string.format("%s totaux (%gs)%s", m.kindWord, parsed.duration, cpTag),
 			string.format("%.1f", m.avg),
 			lr, lg, lb, vr, vg, vb
 		)
 	else
-		tooltip:AddDoubleLine(m.kindWord .. " moyens", string.format("%.1f", m.avg), lr, lg, lb, vr, vg, vb)
+		tooltip:AddDoubleLine(m.kindWord .. " moyens" .. cpTag, string.format("%.1f", m.avg), lr, lg, lb, vr, vg, vb)
 	end
 
 	-- 2. Coup critique et moyenne pondérée avec le % de critique réel

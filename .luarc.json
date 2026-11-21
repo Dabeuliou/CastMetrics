@@ -22,6 +22,7 @@
     "GameFontNormalSmall",
     "GameTooltip",
     "GetActionInfo",
+    "GetComboPoints",
     "GetCritChance",
     "GetHaste",
     "GetMacroSpell",

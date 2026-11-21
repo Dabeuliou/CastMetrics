@@ -120,7 +120,8 @@ local function RunDebug(slotArg)
 			if line and not ns.IsSecret(line) then
 				local left = (line.leftText and not ns.IsSecret(line.leftText)) and line.leftText or "<secret>"
 				local right = (line.rightText and not ns.IsSecret(line.rightText)) and line.rightText or ""
-				print(string.format("  [%d] %s | %s", i, left, right))
+				local escapedLeft = left:gsub("|", "||")
+				print(string.format("  [%d] %s | %s", i, escapedLeft, right:gsub("|", "||")))
 			end
 		end
 	else
@@ -135,21 +136,54 @@ local function RunDebug(slotArg)
 		spellID = spellID or actionValue
 	end
 	if parsed then
-		print(string.format("  Parser -> kind=%s, min=%d, max=%d, avg=%d", parsed.kind, parsed.min, parsed.max, parsed.avg))
+		local comboInfo = parsed.activeComboPoints
+				and string.format(", combo=%d/%d", parsed.activeComboPoints, parsed.comboMaxTier or parsed.activeComboPoints)
+			or ""
+		print(string.format(
+			"  Parser -> kind=%s, min=%d, max=%d, avg=%d (direct=%d, dot=%d)%s",
+			parsed.kind,
+			parsed.min,
+			parsed.max,
+			parsed.avg,
+			parsed.directMin or 0,
+			parsed.dotMin or 0,
+			comboInfo
+		))
 	else
 		print("  Parser -> aucune valeur détectée.")
+		if tooltipData and not ns.IsSecret(tooltipData) and tooltipData.lines and not ns.IsSecret(tooltipData.lines) then
+			for i, line in ipairs(tooltipData.lines) do
+				if line and not ns.IsSecret(line) and line.leftText and not ns.IsSecret(line.leftText) and line.leftText:find("%d") then
+					local norm = ns.TooltipParser.NormalizeText and ns.TooltipParser.NormalizeText(line.leftText) or line.leftText
+					local bytes = {}
+					for b = 1, math.min(#norm, 120) do
+						local c = norm:byte(b)
+						if c < 32 or c > 126 then
+							table.insert(bytes, string.format("\\x%02X", c))
+						else
+							table.insert(bytes, norm:sub(b, b))
+						end
+					end
+					print(string.format("  [bytes %d] %s", i, table.concat(bytes)))
+				end
+			end
+		end
 	end
 
+	local resolvedID = spellID
+	if actionKind == "action" and ns.ManaCalc and ns.ManaCalc.ResolveSpellID then
+		resolvedID = ns.ManaCalc.ResolveSpellID(actionValue, spellID) or spellID
+	end
 	local casts, cost, powerType, isSecret
 	if actionKind == "action" then
 		casts, cost, powerType, isSecret = ns.ManaCalc.GetRemainingCasts(actionValue, spellID)
 	else
-		casts, cost, powerType, isSecret = ns.ManaCalc.GetRemainingCastsForSpell(spellID)
+		casts, cost, powerType, isSecret = ns.ManaCalc.GetRemainingCastsForSpell(resolvedID)
 	end
 	local castsStr = isSecret and (casts ~= nil and "<secret-curve>" or "nil") or tostring(casts)
 	print(string.format(
 		"  ManaCalc -> spellID=%s, cost=%s, powerType=%s, casts=%s, secret=%s",
-		tostring(spellID),
+		tostring(resolvedID),
 		tostring(cost),
 		tostring(powerType),
 		castsStr,
