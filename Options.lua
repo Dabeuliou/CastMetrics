@@ -373,6 +373,19 @@ function ns.InitOptions()
 		end
 	)
 
+	RegisterCheckbox(
+		category,
+		"hideOnCooldown",
+		L["OPT_HIDE_ON_COOLDOWN"],
+		L["OPT_HIDE_ON_COOLDOWN_TT"],
+		true,
+		function()
+			if ns.UpdateAllButtonCooldowns then
+				ns.UpdateAllButtonCooldowns()
+			end
+		end
+	)
+
 	-- 2. Compteur de lancers en bas à droite
 	RegisterCheckbox(
 		category,

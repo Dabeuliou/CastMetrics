@@ -45,6 +45,8 @@ local ui = {
 	OPT_SHOW_CASTS_TT = "Displays in the bottom-right corner how many times you can cast the spell with your current resource.",
 	OPT_CASTS_FONT_SIZE = "Casts counter size",
 	OPT_CASTS_FONT_SIZE_TT = "Adjusts the font size of the remaining casts counter in the bottom-right corner.",
+	OPT_HIDE_ON_COOLDOWN = "Hide center stat while on cooldown",
+	OPT_HIDE_ON_COOLDOWN_TT = "Hides the center number while a spell is on cooldown (excluding GCD) so it does not overlap cooldown timers.",
 	OPT_COMPACT_NUMBERS = "Short format for large numbers (1.4k)",
 	OPT_COMPACT_NUMBERS_TT = "Abbreviates numbers >= 1000 on buttons (e.g. 1450 -> 1.4k).",
 	OPT_SHOW_TOOLTIP_STATS = "Show detailed stats in tooltip",

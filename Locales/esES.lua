@@ -49,6 +49,8 @@ local ui = {
 	OPT_SHOW_CASTS_TT = "Muestra abajo a la derecha cuántas veces puedes lanzar el hechizo con tu recurso actual.",
 	OPT_CASTS_FONT_SIZE = "Tamaño del contador de lanzamientos",
 	OPT_CASTS_FONT_SIZE_TT = "Ajusta el tamaño de fuente del contador abajo a la derecha.",
+	OPT_HIDE_ON_COOLDOWN = "Ocultar valor durante reutilización",
+	OPT_HIDE_ON_COOLDOWN_TT = "Oculta el número central cuando un hechizo está en reutilización (sin contar el GCD) para no tapar el temporizador.",
 	OPT_COMPACT_NUMBERS = "Formato corto para números grandes (1.4k)",
 	OPT_COMPACT_NUMBERS_TT = "Abrevia los números >= 1000 en los botones (ej. 1450 -> 1.4k).",
 	OPT_SHOW_TOOLTIP_STATS = "Mostrar estadísticas detalladas en el tooltip",

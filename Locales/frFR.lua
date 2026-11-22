@@ -49,6 +49,8 @@ local ui = {
 	OPT_SHOW_CASTS_TT = "Affiche en bas à droite combien de fois vous pouvez lancer le sort avec votre ressource actuelle.",
 	OPT_CASTS_FONT_SIZE = "Taille du compteur de lancers",
 	OPT_CASTS_FONT_SIZE_TT = "Ajuste la taille de la police du compteur en bas à droite du bouton.",
+	OPT_HIDE_ON_COOLDOWN = "Masquer la stat pendant le temps de recharge",
+	OPT_HIDE_ON_COOLDOWN_TT = "Masque le chiffre central lorsqu'un sort est en recharge (hors GCD) pour ne pas recouvrir le compteur de recharge.",
 	OPT_COMPACT_NUMBERS = "Format court des grands nombres (1.4k)",
 	OPT_COMPACT_NUMBERS_TT = "Abrège les nombres >= 1000 sur les boutons (ex: 1450 -> 1.4k).",
 	OPT_SHOW_TOOLTIP_STATS = "Afficher les stats détaillées dans le tooltip",

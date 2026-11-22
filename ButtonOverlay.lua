@@ -4,6 +4,9 @@ local _, ns = ...
 -- overlays[button] = { dmgText = FontString, castsText = FontString, actionKey = string, spellID = number }
 local overlays = {}
 local hookedLibs = {}
+local hookedCooldowns = {}
+
+local GCD_MAX_DURATION = 1.55
 
 -- Préfixes standards des barres d'action Blizzard (fallback si certains boutons ne sont pas dans ActionBarButtonEventsFrame)
 local BAR_PREFIXES = {
@@ -182,11 +185,106 @@ function ns.GetButtonAction(button)
 	return nil, nil
 end
 
+local function ApplyCooldownVisibility(overlay)
+	if not overlay or not overlay.dmgText then
+		return
+	end
+
+	local db = CastMetricsDB
+	if not db or not db.hideOnCooldown or not db.showDamage or not overlay.parsed then
+		overlay.dmgText:SetAlpha(1)
+		return
+	end
+
+	local actionKind = overlay.actionKind
+	local actionValue = overlay.actionValue
+	local spellID = overlay.resolvedSpellID or overlay.spellID
+
+	-- 1. Sur Retail moderne, isOnGCD est un booléen NeverSecret : on ne masque jamais pour le GCD seul
+	local spellCDInfo = nil
+	if spellID and C_Spell and C_Spell.GetSpellCooldown then
+		local ok, info = pcall(C_Spell.GetSpellCooldown, spellID)
+		if ok and info and not ns.IsSecret(info) then
+			spellCDInfo = info
+			if info.isOnGCD == true then
+				overlay.dmgText:SetAlpha(1)
+				return
+			end
+		end
+	end
+
+	-- 2. Retail 12.x : DurationObject + SetAlphaFromBoolean (sûr même avec des secret values en combat)
+	if overlay.dmgText.SetAlphaFromBoolean then
+		local durationObj = nil
+		if actionKind == "action" and actionValue and C_ActionBar and C_ActionBar.GetActionCooldownDuration then
+			local ok, obj = pcall(C_ActionBar.GetActionCooldownDuration, actionValue, true)
+			if not ok then
+				ok, obj = pcall(C_ActionBar.GetActionCooldownDuration, actionValue)
+			end
+			if ok and obj then
+				durationObj = obj
+			end
+		elseif spellID and C_Spell and C_Spell.GetSpellCooldownDuration then
+			local ok, obj = pcall(C_Spell.GetSpellCooldownDuration, spellID)
+			if ok and obj then
+				durationObj = obj
+			end
+		end
+
+		if durationObj and durationObj.IsZero then
+			local okZero, isZero = pcall(durationObj.IsZero, durationObj)
+			if okZero and isZero ~= nil then
+				overlay.dmgText:SetAlphaFromBoolean(isZero, 1, 0)
+				return
+			end
+		end
+	end
+
+	-- 3. Fallback Classic / Forever (16001) et valeurs non-secrètes
+	local startTime, duration, enabled
+	if actionKind == "action" and actionValue then
+		local getActionCD = (C_ActionBar and C_ActionBar.GetActionCooldown) or GetActionCooldown
+		if getActionCD then
+			local ok, s, d, e = pcall(getActionCD, actionValue)
+			if ok then
+				startTime, duration, enabled = s, d, e
+			end
+		end
+	end
+	if (startTime == nil or duration == nil) and spellCDInfo then
+		startTime = spellCDInfo.startTime
+		duration = spellCDInfo.duration
+		enabled = spellCDInfo.isEnabled
+	elseif (startTime == nil or duration == nil) and spellID and GetSpellCooldown then
+		local ok, s, d, e = pcall(GetSpellCooldown, spellID)
+		if ok then
+			startTime, duration, enabled = s, d, e
+		end
+	end
+
+	if startTime ~= nil and duration ~= nil and not ns.IsSecret(startTime) and not ns.IsSecret(duration) then
+		local isEnabled = (enabled == nil or ns.IsSecret(enabled) or (enabled ~= 0 and enabled ~= false))
+		if isEnabled and startTime > 0 and duration > GCD_MAX_DURATION then
+			local remaining = (startTime + duration) - GetTime()
+			if remaining > 0.05 then
+				overlay.dmgText:SetAlpha(0)
+				return
+			end
+		end
+	end
+
+	overlay.dmgText:SetAlpha(1)
+end
+
 local function ClearOverlay(overlay)
 	overlay.dmgText:SetText("")
+	overlay.dmgText:SetAlpha(1)
 	overlay.castsText:SetText("")
 	overlay.actionKey = nil
+	overlay.actionKind = nil
+	overlay.actionValue = nil
 	overlay.spellID = nil
+	overlay.resolvedSpellID = nil
 	overlay.parsed = nil
 	overlay.lastCasts = nil
 end
@@ -243,6 +341,9 @@ local function UpdateButton(button, onlyMana)
 	if actionKind == "action" and ns.ManaCalc and ns.ManaCalc.ResolveSpellID then
 		resolvedID = ns.ManaCalc.ResolveSpellID(actionValue, overlay.spellID) or overlay.spellID
 	end
+	overlay.actionKind = actionKind
+	overlay.actionValue = actionValue
+	overlay.resolvedSpellID = resolvedID
 
 	local activeParsed = overlay.parsed
 	if activeParsed and activeParsed.comboTiers and ns.TooltipParser and ns.TooltipParser.ResolveComboTier then
@@ -254,8 +355,10 @@ local function UpdateButton(button, onlyMana)
 		local text, r, g, b = FormatCenterStat(activeParsed, resolvedID, db)
 		overlay.dmgText:SetText(text)
 		overlay.dmgText:SetTextColor(r, g, b)
+		ApplyCooldownVisibility(overlay)
 	else
 		overlay.dmgText:SetText("")
+		overlay.dmgText:SetAlpha(1)
 	end
 
 	-- 2. Affichage du nombre de lancers possibles avec la ressource actuelle
@@ -305,12 +408,41 @@ local function RegisterButton(button)
 		end)
 	end
 
+	local cdFrame = button.cooldown or button.Cooldown
+	if cdFrame and not hookedCooldowns[cdFrame] then
+		hookedCooldowns[cdFrame] = true
+		local function OnCooldownChanged()
+			ApplyCooldownVisibility(overlays[button])
+		end
+		if cdFrame.SetCooldown then
+			hooksecurefunc(cdFrame, "SetCooldown", OnCooldownChanged)
+		end
+		if cdFrame.SetCooldownFromDurationObject then
+			hooksecurefunc(cdFrame, "SetCooldownFromDurationObject", OnCooldownChanged)
+		end
+		if cdFrame.Clear then
+			hooksecurefunc(cdFrame, "Clear", OnCooldownChanged)
+		end
+		if cdFrame.HookScript then
+			cdFrame:HookScript("OnHide", OnCooldownChanged)
+			if cdFrame.HasScript and cdFrame:HasScript("OnCooldownDone") then
+				cdFrame:HookScript("OnCooldownDone", OnCooldownChanged)
+			end
+		end
+	end
+
 	UpdateButton(button, false)
 end
 
 function ns.UpdateAllButtons(onlyMana)
 	for button in pairs(overlays) do
 		UpdateButton(button, onlyMana)
+	end
+end
+
+function ns.UpdateAllButtonCooldowns()
+	for _, overlay in pairs(overlays) do
+		ApplyCooldownVisibility(overlay)
 	end
 end
 

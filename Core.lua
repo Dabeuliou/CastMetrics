@@ -8,6 +8,7 @@ local DEFAULT_DB = {
 	showDamage = true,
 	centerStat = "avg", -- "avg", "weighted", "range", "crit", "dpm", "dps"
 	centerFontSize = 11,
+	hideOnCooldown = true,
 	showCasts = true,
 	castsFontSize = 10,
 	showTooltipStats = true,
@@ -193,7 +194,7 @@ local function RunDebug(slotArg)
 	))
 	local db = CastMetricsDB
 	if db then
-		print(string.format("  Options -> showDamage=%s, showCasts=%s, centerStat=%s", tostring(db.showDamage), tostring(db.showCasts), tostring(db.centerStat)))
+		print(string.format("  Options -> showDamage=%s, showCasts=%s, hideOnCooldown=%s, centerStat=%s", tostring(db.showDamage), tostring(db.showCasts), tostring(db.hideOnCooldown), tostring(db.centerStat)))
 	end
 end
 
@@ -248,14 +249,24 @@ end
 -- Coalesce / anti-rebond : évite de recalculer 50 fois par seconde si plusieurs événements tombent ensemble
 local pendingFullUpdate = false
 local pendingManaUpdate = false
+local pendingCooldownUpdate = false
 local timerScheduled = false
 
 local function FlushUpdates()
 	timerScheduled = false
 	local full = pendingFullUpdate
 	local manaOnly = pendingManaUpdate and not full
+	local cooldownOnly = pendingCooldownUpdate and not full and not manaOnly
 	pendingFullUpdate = false
 	pendingManaUpdate = false
+	pendingCooldownUpdate = false
+
+	if cooldownOnly then
+		if ns.UpdateAllButtonCooldowns then
+			ns.UpdateAllButtonCooldowns()
+		end
+		return
+	end
 
 	if ns.UpdateAllButtons then
 		ns.UpdateAllButtons(manaOnly)
@@ -271,6 +282,15 @@ function ns.RequestUpdate(onlyMana)
 	else
 		pendingFullUpdate = true
 	end
+
+	if not timerScheduled then
+		timerScheduled = true
+		C_Timer.After(0.05, FlushUpdates)
+	end
+end
+
+function ns.RequestCooldownUpdate()
+	pendingCooldownUpdate = true
 
 	if not timerScheduled then
 		timerScheduled = true
@@ -347,6 +367,18 @@ end
 
 function events.ACTIONBAR_UPDATE_STATE()
 	ns.RequestUpdate(false)
+end
+
+function events.SPELL_UPDATE_COOLDOWN()
+	ns.RequestCooldownUpdate()
+end
+
+function events.ACTIONBAR_UPDATE_COOLDOWN()
+	ns.RequestCooldownUpdate()
+end
+
+function events.SPELL_UPDATE_CHARGES()
+	ns.RequestCooldownUpdate()
 end
 
 function events.SPELLS_CHANGED()

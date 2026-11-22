@@ -49,6 +49,8 @@ local ui = {
 	OPT_SHOW_CASTS_TT = "Zeigt unten rechts an, wie oft der Zauber mit deiner aktuellen Ressource gewirkt werden kann.",
 	OPT_CASTS_FONT_SIZE = "Schriftgröße (Zauberzähler)",
 	OPT_CASTS_FONT_SIZE_TT = "Passt die Schriftgröße des Zählers unten rechts an.",
+	OPT_HIDE_ON_COOLDOWN = "Wert während Abklingzeit ausblenden",
+	OPT_HIDE_ON_COOLDOWN_TT = "Blendet den mittleren Wert während einer Abklingzeit (außer GCD) aus, damit die Abklingzeit lesbar bleibt.",
 	OPT_COMPACT_NUMBERS = "Große Zahlen abkürzen (1.4k)",
 	OPT_COMPACT_NUMBERS_TT = "Kürzt Zahlen >= 1000 auf Buttons ab (z.B. 1450 -> 1.4k).",
 	OPT_SHOW_TOOLTIP_STATS = "Detaillierte Werte im Tooltip anzeigen",
