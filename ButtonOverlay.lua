@@ -295,10 +295,16 @@ local function UpdateButton(button, onlyMana)
 		return
 	end
 
+	if button.IsVisible and not button:IsVisible() then
+		return
+	end
+
 	local actionKind, actionValue = ns.GetButtonAction(button)
 	local isValidAction = (actionKind == "action" and HasAction(actionValue)) or (actionKind == "spell" and actionValue)
 	if not isValidAction then
-		ClearOverlay(overlay)
+		if overlay.actionKey ~= nil then
+			ClearOverlay(overlay)
+		end
 		return
 	end
 
@@ -376,6 +382,34 @@ local function UpdateButton(button, onlyMana)
 	end
 end
 
+local function UpdateButtonSmart(button)
+	local overlay = overlays[button]
+	if not overlay then
+		return
+	end
+	if button.IsVisible and not button:IsVisible() then
+		return
+	end
+
+	local actionKind, actionValue = ns.GetButtonAction(button)
+	if not actionKind then
+		if overlay.actionKey ~= nil then
+			ClearOverlay(overlay)
+		end
+		return
+	end
+
+	local actionKey = actionKind .. ":" .. tostring(actionValue)
+	local currentSpell = (actionKind == "action" and ns.ManaCalc and ns.ManaCalc.ResolveSpellID)
+			and ns.ManaCalc.ResolveSpellID(actionValue, overlay.spellID)
+		or ((actionKind == "spell") and actionValue or overlay.spellID)
+	local sameSpell = (overlay.actionKey == actionKey)
+		and (overlay.parsed ~= nil)
+		and (currentSpell ~= nil and currentSpell == overlay.resolvedSpellID)
+
+	UpdateButton(button, sameSpell)
+end
+
 local function RegisterButton(button)
 	if not button or overlays[button] then
 		return
@@ -404,29 +438,42 @@ local function RegisterButton(button)
 	-- Hook sécurisé (hooksecurefunc ne provoque pas de "taint" sur le bouton protégé)
 	if button.UpdateAction then
 		hooksecurefunc(button, "UpdateAction", function(self)
-			UpdateButton(self, false)
+			UpdateButtonSmart(self)
+		end)
+	end
+
+	if button.HookScript then
+		button:HookScript("OnShow", function(self)
+			UpdateButtonSmart(self)
 		end)
 	end
 
 	local cdFrame = button.cooldown or button.Cooldown
 	if cdFrame and not hookedCooldowns[cdFrame] then
 		hookedCooldowns[cdFrame] = true
-		local function OnCooldownChanged()
-			ApplyCooldownVisibility(overlays[button])
+		local function OnCooldownSet()
+			if (not button.IsVisible or button:IsVisible()) and ns.RequestCooldownUpdate then
+				ns.RequestCooldownUpdate()
+			end
+		end
+		local function OnCooldownEnd()
+			if not button.IsVisible or button:IsVisible() then
+				ApplyCooldownVisibility(overlays[button])
+			end
 		end
 		if cdFrame.SetCooldown then
-			hooksecurefunc(cdFrame, "SetCooldown", OnCooldownChanged)
+			hooksecurefunc(cdFrame, "SetCooldown", OnCooldownSet)
 		end
 		if cdFrame.SetCooldownFromDurationObject then
-			hooksecurefunc(cdFrame, "SetCooldownFromDurationObject", OnCooldownChanged)
+			hooksecurefunc(cdFrame, "SetCooldownFromDurationObject", OnCooldownSet)
 		end
 		if cdFrame.Clear then
-			hooksecurefunc(cdFrame, "Clear", OnCooldownChanged)
+			hooksecurefunc(cdFrame, "Clear", OnCooldownEnd)
 		end
 		if cdFrame.HookScript then
-			cdFrame:HookScript("OnHide", OnCooldownChanged)
+			cdFrame:HookScript("OnHide", OnCooldownEnd)
 			if cdFrame.HasScript and cdFrame:HasScript("OnCooldownDone") then
-				cdFrame:HookScript("OnCooldownDone", OnCooldownChanged)
+				cdFrame:HookScript("OnCooldownDone", OnCooldownEnd)
 			end
 		end
 	end
@@ -441,8 +488,10 @@ function ns.UpdateAllButtons(onlyMana)
 end
 
 function ns.UpdateAllButtonCooldowns()
-	for _, overlay in pairs(overlays) do
-		ApplyCooldownVisibility(overlay)
+	for button, overlay in pairs(overlays) do
+		if not button.IsVisible or button:IsVisible() then
+			ApplyCooldownVisibility(overlay)
+		end
 	end
 end
 
@@ -482,7 +531,7 @@ local function HookLibActionButton(libName)
 			end)
 			lab.RegisterCallback(token, "OnButtonUpdate", function(_, button)
 				RegisterButton(button)
-				UpdateButton(button, false)
+				UpdateButtonSmart(button)
 			end)
 		end
 	end

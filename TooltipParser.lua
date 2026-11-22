@@ -48,15 +48,17 @@ local function NormalizeText(text)
 	clean = clean:gsub("|n", "\n")
 	clean = clean:gsub("\194\160", " "):gsub("\226\128\175", " ")
 
-	local rules = GetRules()
-	local thousandPattern = (rules and rules.thousandPattern) or "(%d)[ ,](%d%d%d)"
-
 	-- On boucle pour gérer les grands nombres (ex: 1 234 567) sans toucher aux décimales
-	while true do
-		local nextText, count = clean:gsub(thousandPattern, "%1%2")
-		clean = nextText
-		if count == 0 then
-			break
+	if clean:find("%d") then
+		local rules = GetRules()
+		local thousandPattern = (rules and rules.thousandPattern) or "(%d)[ ,](%d%d%d)"
+
+		while true do
+			local nextText, count = clean:gsub(thousandPattern, "%1%2")
+			clean = nextText
+			if count == 0 then
+				break
+			end
 		end
 	end
 

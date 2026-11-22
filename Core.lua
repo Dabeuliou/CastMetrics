@@ -365,10 +365,6 @@ function events.UNIT_MAXHEALTH(unitTarget)
 	end
 end
 
-function events.ACTIONBAR_UPDATE_STATE()
-	ns.RequestUpdate(false)
-end
-
 function events.SPELL_UPDATE_COOLDOWN()
 	ns.RequestCooldownUpdate()
 end
@@ -389,9 +385,16 @@ function events.PLAYER_EQUIPMENT_CHANGED()
 	ns.RequestUpdate(false)
 end
 
+local auraTimerScheduled = false
+local function FlushAuraUpdate()
+	auraTimerScheduled = false
+	ns.RequestUpdate(false)
+end
+
 function events.UNIT_AURA(unitTarget)
-	if unitTarget == "player" then
-		ns.RequestUpdate(false)
+	if unitTarget == "player" and not auraTimerScheduled then
+		auraTimerScheduled = true
+		C_Timer.After(0.25, FlushAuraUpdate)
 	end
 end
 

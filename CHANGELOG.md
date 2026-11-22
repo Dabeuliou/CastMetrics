@@ -2,6 +2,16 @@
 
 All notable changes to **CastMetrics** are documented in this file.
 
+## [1.4.0-beta.2] - 2026-11-22
+
+### Fixed & Optimized
+- Eliminated framerate drops when spamming spell keys:
+  - Removed unnecessary full tooltip re-parses on `ACTIONBAR_UPDATE_STATE`.
+  - Skip hidden action buttons until shown (`OnShow`) and avoid re-parsing tooltips on `UpdateAction` / `OnButtonUpdate` when the spell has not changed.
+  - Coalesced GCD cooldown hook updates and throttled `UNIT_AURA` refreshes in combat.
+
+---
+
 ## [1.4.0-beta.1] - 2026-11-22
 
 ### Added
