@@ -1,4 +1,6 @@
-## [1.4.0-beta.2] - 2026-11-22
+## [1.4.0] - 2026-11-22
+
+*Special thanks to **Vax** for suggesting cooldown hiding, spotting the key-spam framerate drop, and beta-testing this release!*
 
 ### Added
 - Automatically hide the center damage/healing stat while a spell is on a real cooldown (excluding the GCD and spells with remaining charges), keeping cooldown countdown numbers clearly readable.
