@@ -3,11 +3,12 @@ package-as: CastMetrics
 enable-nolib-creation: no
 
 manual-changelog:
-  filename: CHANGELOG.md
+  filename: CHANGES_LATEST.md
   markup-type: markdown
 
 ignore:
   - assets
   - tests
+  - CHANGES_LATEST.md
   - deploy.ps1
   - package.ps1
