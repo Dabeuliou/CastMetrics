@@ -41,7 +41,7 @@ try {
     # Copie les fichiers de l'addon + README.md / LICENSE (en conservant les sous-dossiers comme Locales\)
     # pour que vos amis n'aient qu'a extraire l'archive dans Interface\AddOns\
     $FilesToPack = Get-ChildItem -LiteralPath $SourceDir -Recurse -File | Where-Object {
-        ($_.Extension -in @(".toc", ".lua", ".xml") -or $_.Name -in @("README.md", "LICENSE")) -and
+        ($_.Extension -in @(".toc", ".lua", ".xml") -or $_.Name -in @("README.md", "CHANGELOG.md", "LICENSE")) -and
         $_.FullName -notmatch "[\\/](?:\.git|\.vscode|dist|tests|assets)[\\/]"
     }
 
