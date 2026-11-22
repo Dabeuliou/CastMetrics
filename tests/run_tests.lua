@@ -26,6 +26,14 @@ _G["UnitHealthMax"] = function()
 	return 10000
 end
 
+_G["UnitDamage"] = function()
+	return 100, 150, 50, 75, 0, 0, 1
+end
+
+_G["UnitRangedDamage"] = function()
+	return 2.8, 120, 180, 0, 0, 1
+end
+
 _G["issecretvalue"] = function(_)
 	return false
 end

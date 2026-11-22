@@ -104,7 +104,7 @@ local parser = {
 	damageDetectPatterns = {
 		"%d+%s+points?%s+de%s+dégât",
 		"%d+%s+points?%s+de%s+degat",
-		"dégâts? de l'arme",
+		"dégâts?%s+[^%.]-arme",
 	},
 
 	healContextWords = { "soigne", "soins", "points?%s+de%s+vie" },
@@ -117,7 +117,7 @@ local parser = {
 		{ school = 5, words = { "de givre" } },
 		{ school = 6, words = { "d'ombre" } },
 		{ school = 7, words = { "des arcanes" } },
-		{ school = 1, words = { "physique", "saignement", "de l'arme" } },
+		{ school = 1, words = { "physique", "saignement", "de l'arme", "de votre arme", "d'arme" } },
 	},
 
 	chunkPatterns = {
@@ -128,9 +128,18 @@ local parser = {
 		{ pattern = "(%d+)%s+à%s+(%d+)%s+supplémentaires", useLineKind = true, range = true },
 		{ pattern = "soigne[^%d%.]*(%d+)%s+à%s+(%d+)", kind = "heal", range = true, requiresLineKind = "heal" },
 		{ pattern = "pour%s+(%d+)%s+à%s+(%d+)", kind = "heal", range = true, requiresLineKind = "heal" },
+		{ pattern = "(%d+[%.,]?%d*)%s*%%%s+des?%s+dégâts?[^%d%.]-arme[^%d%.]-main gauche[^%d%.]-plus%s+(%d+)", kind = "damage", isWeaponPct = true, weaponSlot = "offhand" },
+		{ pattern = "(%d+[%.,]?%d*)%s*%%%s+des?%s+dégâts?[^%d%.]-arme[^%d%.]-à distance[^%d%.]-plus%s+(%d+)", kind = "damage", isWeaponPct = true, weaponSlot = "ranged" },
+		{ pattern = "(%d+[%.,]?%d*)%s*%%%s+des?%s+dégâts?[^%d%.]-arme[^%d%.]-plus%s+(%d+)", kind = "damage", isWeaponPct = true, weaponSlot = "main" },
+		{ pattern = "(%d+[%.,]?%d*)%s*%%%s+des?%s+dégâts?[^%d%.]-arme[^%d%.]-main gauche", kind = "damage", isWeaponPct = true, weaponSlot = "offhand" },
+		{ pattern = "(%d+[%.,]?%d*)%s*%%%s+des?%s+dégâts?[^%d%.]-arme[^%d%.]-à distance", kind = "damage", isWeaponPct = true, weaponSlot = "ranged" },
+		{ pattern = "(%d+[%.,]?%d*)%s*%%%s+des?%s+dégâts?[^%d%.]-arme", kind = "damage", isWeaponPct = true, weaponSlot = "main" },
+		{ pattern = "dégâts?[^%d%.]-arme[^%d%.]-main gauche[^%d%.]-plus%s+(%d+)", kind = "damage", isWeaponBonus = true, weaponSlot = "offhand" },
+		{ pattern = "dégâts?[^%d%.]-arme[^%d%.]-à distance[^%d%.]-plus%s+(%d+)", kind = "damage", isWeaponBonus = true, weaponSlot = "ranged" },
+		{ pattern = "dégâts?[^%d%.]-arme[^%d%.]-plus%s+(%d+)", kind = "damage", isWeaponBonus = true, weaponSlot = "main" },
+		{ pattern = "dégâts?%s+normaux%s+de%s+l'arme", kind = "damage", isWeaponBonus = true, weaponSlot = "main" },
 		{ pattern = "(%d+)%s+points?%s+de%s+dégâts?", kind = "damage", range = false },
 		{ pattern = "(%d+)%s+points?%s+de%s+degats?", kind = "damage", range = false },
-		{ pattern = "dégâts? de l'arme[^%d]*plus%s+(%d+)", kind = "damage", range = false },
 		{ pattern = "(%d+)%s+points?%s+de%s+vie", kind = "heal", range = false },
 		{ pattern = "rend[^%d%%%.]*(%d+[%.,]?%d*)%s*%%%s+de%s+[^%.]-vie", kind = "heal", requiresLineKind = "heal", isHealthPct = true },
 		{ pattern = "récupérez[^%d%%%.]*(%d+[%.,]?%d*)%s*%%%s+de%s+[^%.]-vie", kind = "heal", requiresLineKind = "heal", isHealthPct = true },

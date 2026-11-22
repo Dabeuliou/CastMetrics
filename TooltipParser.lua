@@ -4,6 +4,11 @@ local TooltipParser = {}
 ns.TooltipParser = TooltipParser
 
 local lastKnownMaxHealth = nil
+local lastKnownWeaponDamage = {
+	main = nil,
+	offhand = nil,
+	ranged = nil,
+}
 
 local function GetPlayerMaxHealth()
 	if UnitHealthMax then
@@ -18,6 +23,58 @@ end
 
 function TooltipParser.CacheMaxHealth()
 	GetPlayerMaxHealth()
+end
+
+local function GetPlayerWeaponDamage(weaponSlot)
+	local slot = weaponSlot or "main"
+
+	if slot == "ranged" then
+		if UnitRangedDamage then
+			local ok, _, lowDmg, hiDmg = pcall(UnitRangedDamage, "player")
+			if ok and lowDmg and hiDmg and not ns.IsSecret(lowDmg) and not ns.IsSecret(hiDmg) and hiDmg > 0 then
+				lastKnownWeaponDamage.ranged = { lowDmg, hiDmg }
+				return lowDmg, hiDmg
+			end
+		end
+		local cached = lastKnownWeaponDamage.ranged
+		if cached then
+			return cached[1], cached[2]
+		end
+		return nil, nil
+	end
+
+	if UnitDamage then
+		local ok, lowDmg, hiDmg, offLowDmg, offHiDmg = pcall(UnitDamage, "player")
+		if ok then
+			if lowDmg and hiDmg and not ns.IsSecret(lowDmg) and not ns.IsSecret(hiDmg) and hiDmg > 0 then
+				lastKnownWeaponDamage.main = { lowDmg, hiDmg }
+			end
+			if offLowDmg and offHiDmg and not ns.IsSecret(offLowDmg) and not ns.IsSecret(offHiDmg) and offHiDmg > 0 then
+				lastKnownWeaponDamage.offhand = { offLowDmg, offHiDmg }
+			end
+			if slot == "offhand" then
+				if offLowDmg and offHiDmg and not ns.IsSecret(offLowDmg) and not ns.IsSecret(offHiDmg) then
+					if offHiDmg > 0 then
+						return offLowDmg, offHiDmg
+					end
+					return nil, nil
+				end
+			elseif lowDmg and hiDmg and not ns.IsSecret(lowDmg) and not ns.IsSecret(hiDmg) and hiDmg > 0 then
+				return lowDmg, hiDmg
+			end
+		end
+	end
+
+	local cached = lastKnownWeaponDamage[slot]
+	if cached then
+		return cached[1], cached[2]
+	end
+	return nil, nil
+end
+
+function TooltipParser.CacheWeaponDamage()
+	GetPlayerWeaponDamage("main")
+	GetPlayerWeaponDamage("ranged")
 end
 
 local function GetRules()
@@ -358,7 +415,26 @@ function TooltipParser.ParseLine(rawText, fallbackKind)
 					bestIsHealthPct = spec.isHealthPct and true or false
 					bestMin = ParseDecimal(c1)
 					bestMax = ParseDecimal(spec.range and c2 or c1)
-					if spec.isHealthPct and bestMin and bestMax then
+					if spec.isWeaponPct then
+						local lowDmg, hiDmg = GetPlayerWeaponDamage(spec.weaponSlot)
+						local pct = ParseDecimal(c1)
+						local bonus = ParseDecimal(c2) or 0
+						if lowDmg and hiDmg and pct then
+							bestMin = lowDmg * (pct / 100) + bonus
+							bestMax = hiDmg * (pct / 100) + bonus
+						else
+							bestMin, bestMax = nil, nil
+						end
+					elseif spec.isWeaponBonus then
+						local lowDmg, hiDmg = GetPlayerWeaponDamage(spec.weaponSlot)
+						local bonus = ParseDecimal(c1) or 0
+						if lowDmg and hiDmg then
+							bestMin = lowDmg + bonus
+							bestMax = hiDmg + bonus
+						else
+							bestMin, bestMax = nil, nil
+						end
+					elseif spec.isHealthPct and bestMin and bestMax then
 						local maxHealth = GetPlayerMaxHealth()
 						if maxHealth and maxHealth > 0 then
 							bestMin = bestMin * (maxHealth / 100)
@@ -656,7 +732,10 @@ function TooltipParser.ParseLines(lines)
 				if ns.IsSecret(line.leftText) then
 					hadSecret = true
 				else
-					for subLine in NormalizeText(line.leftText):gmatch("[^\r\n]+") do
+					local normLine = NormalizeText(line.leftText)
+					local lineHadCombo = false
+					local lineHadParsed = false
+					for subLine in normLine:gmatch("[^\r\n]+") do
 						local lowerSub = subLine:lower()
 						if lowerSub:find(comboHint, 1, true) then
 							sawComboHint = true
@@ -670,6 +749,7 @@ function TooltipParser.ParseLines(lines)
 
 						local cp, tierResult = ParseComboTierLine(subLine, contextKind, contextSchool, rules)
 						if cp and tierResult then
+							lineHadCombo = true
 							if not comboTiers[cp] then
 								comboCount = comboCount + 1
 							end
@@ -684,8 +764,12 @@ function TooltipParser.ParseLines(lines)
 							local parsed = TooltipParser.ParseLine(subLine)
 							if parsed then
 								firstParsed = parsed
+								lineHadParsed = true
 							end
 						end
+					end
+					if not lineHadCombo and not lineHadParsed and not firstParsed and normLine:find("[\r\n]") then
+						firstParsed = TooltipParser.ParseLine((normLine:gsub("[\r\n]+", " ")))
 					end
 				end
 			end

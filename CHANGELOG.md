@@ -2,6 +2,16 @@
 
 All notable changes to **CastMetrics** are documented in this file.
 
+## [1.4.2-beta.1] - 2026-11-22
+
+### Added
+- **Weapon-damage spell scaling**: Calculate actual damage for percentage weapon-damage abilities (such as *Backstab* / *Attaque sournoise*) across `enUS`, `frFR`, `deDE`, and `esES` using `UnitDamage("player")` and `UnitRangedDamage("player")` (main-hand, off-hand, ranged, and flat `+bonus` modifiers), with combat caching.
+
+### Fixed
+- Fallback to joined tooltip lines when a damage description wraps across a line break without combo-point tiers.
+
+---
+
 ## [1.4.1] - 2026-11-22
 
 ### Added

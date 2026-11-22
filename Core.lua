@@ -347,6 +347,9 @@ function events.PLAYER_ENTERING_WORLD()
 	if ns.TooltipParser and ns.TooltipParser.CacheMaxHealth then
 		ns.TooltipParser.CacheMaxHealth()
 	end
+	if ns.TooltipParser and ns.TooltipParser.CacheWeaponDamage then
+		ns.TooltipParser.CacheWeaponDamage()
+	end
 	if ns.ManaCalc and ns.ManaCalc.CacheMaxPowers then
 		ns.ManaCalc.CacheMaxPowers()
 	end
@@ -368,6 +371,9 @@ end
 function events.UPDATE_SHAPESHIFT_FORM()
 	if ns.TooltipParser and ns.TooltipParser.CacheMaxHealth then
 		ns.TooltipParser.CacheMaxHealth()
+	end
+	if ns.TooltipParser and ns.TooltipParser.CacheWeaponDamage then
+		ns.TooltipParser.CacheWeaponDamage()
 	end
 	if ns.ManaCalc and ns.ManaCalc.CacheMaxPowers then
 		ns.ManaCalc.CacheMaxPowers()
@@ -401,6 +407,9 @@ function events.SPELLS_CHANGED()
 end
 
 function events.PLAYER_EQUIPMENT_CHANGED()
+	if ns.TooltipParser and ns.TooltipParser.CacheWeaponDamage then
+		ns.TooltipParser.CacheWeaponDamage()
+	end
 	ns.RequestUpdate(false)
 end
 
