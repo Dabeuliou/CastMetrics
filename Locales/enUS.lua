@@ -33,6 +33,7 @@ local ui = {
 	OPT_STAT_CRIT = "Estimated critical strike",
 	OPT_STAT_DPM = "Efficiency (DPM / HPM / DPR)",
 	OPT_STAT_DPS = "DPS / HPS (by cast time)",
+	OPT_STAT_CASTS = "Remaining casts (center only)",
 	OPT_PREVIEW_AUTO = "Automatic (1st spell on bars)",
 
 	OPT_SHOW_DAMAGE = "Show center stat",
@@ -45,6 +46,9 @@ local ui = {
 	OPT_SHOW_CASTS_TT = "Displays in the bottom-right corner how many times you can cast the spell with your current resource.",
 	OPT_CASTS_FONT_SIZE = "Casts counter size",
 	OPT_CASTS_FONT_SIZE_TT = "Adjusts the font size of the remaining casts counter in the bottom-right corner.",
+	OPT_CASTS_THRESHOLD = "Display threshold (max casts)",
+	OPT_CASTS_THRESHOLD_TT = "Only shows the remaining casts counter when at or below this value (0 = always show).",
+	OPT_THRESHOLD_ALL = "All",
 	OPT_HIDE_ON_COOLDOWN = "Hide center stat while on cooldown",
 	OPT_HIDE_ON_COOLDOWN_TT = "Hides the center number while a spell is on cooldown (excluding GCD) so it does not overlap cooldown timers.",
 	OPT_COMPACT_NUMBERS = "Short format for large numbers (1.4k)",

@@ -37,6 +37,7 @@ local ui = {
 	OPT_STAT_CRIT = "Golpe crítico estimado",
 	OPT_STAT_DPM = "Eficiencia (DPM / HPM / DPR)",
 	OPT_STAT_DPS = "DPS / HPS (por tiempo de lanzamiento)",
+	OPT_STAT_CASTS = "Lanzamientos posibles (centro)",
 	OPT_PREVIEW_AUTO = "Automático (1.er hechizo de las barras)",
 
 	OPT_SHOW_DAMAGE = "Mostrar estadística central",
@@ -49,6 +50,9 @@ local ui = {
 	OPT_SHOW_CASTS_TT = "Muestra abajo a la derecha cuántas veces puedes lanzar el hechizo con tu recurso actual.",
 	OPT_CASTS_FONT_SIZE = "Tamaño del contador de lanzamientos",
 	OPT_CASTS_FONT_SIZE_TT = "Ajusta el tamaño de fuente del contador abajo a la derecha.",
+	OPT_CASTS_THRESHOLD = "Umbral de visualización (máx.)",
+	OPT_CASTS_THRESHOLD_TT = "Solo muestra el contador de lanzamientos si quedan como máximo este número (0 = mostrar siempre).",
+	OPT_THRESHOLD_ALL = "Todos",
 	OPT_HIDE_ON_COOLDOWN = "Ocultar valor durante reutilización",
 	OPT_HIDE_ON_COOLDOWN_TT = "Oculta el número central cuando un hechizo está en reutilización (sin contar el GCD) para no tapar el temporizador.",
 	OPT_COMPACT_NUMBERS = "Formato corto para números grandes (1.4k)",

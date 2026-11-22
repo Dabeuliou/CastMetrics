@@ -2,6 +2,14 @@
 
 All notable changes to **CastMetrics** are documented in this file.
 
+## [1.4.1] - 2026-11-22
+
+### Added
+- **Center Remaining Casts mode**: Added **"Remaining casts (center only)"** to the center statistic options in `/cm config` and `/cm mode`, including resource-costing utility/buff spells, while automatically disabling and greying out the bottom-right casts checkbox.
+- **Remaining Casts Display Threshold**: Added a **"Display threshold (max casts)"** slider (`0–100`, `0 = All`) in `/cm config` to hide the casts counter above your threshold (safe in combat with Retail *secret values* via `C_CurveUtil`).
+
+---
+
 ## [1.4.0] - 2026-11-22
 
 *Special thanks to **Vax** for suggesting cooldown hiding, spotting the key-spam framerate drop, and beta-testing this release!*

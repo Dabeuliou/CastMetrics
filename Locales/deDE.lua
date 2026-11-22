@@ -37,6 +37,7 @@ local ui = {
 	OPT_STAT_CRIT = "Geschätzter kritischer Treffer",
 	OPT_STAT_DPM = "Effizienz (DPM / HPM / DPR)",
 	OPT_STAT_DPS = "DPS / HPS (nach Zauberzeit)",
+	OPT_STAT_CASTS = "Verbleibende Zauber (Mitte)",
 	OPT_PREVIEW_AUTO = "Automatisch (1. Zauber der Leisten)",
 
 	OPT_SHOW_DAMAGE = "Zentralen Wert anzeigen",
@@ -49,6 +50,9 @@ local ui = {
 	OPT_SHOW_CASTS_TT = "Zeigt unten rechts an, wie oft der Zauber mit deiner aktuellen Ressource gewirkt werden kann.",
 	OPT_CASTS_FONT_SIZE = "Schriftgröße (Zauberzähler)",
 	OPT_CASTS_FONT_SIZE_TT = "Passt die Schriftgröße des Zählers unten rechts an.",
+	OPT_CASTS_THRESHOLD = "Anzeigeschwelle (max. Zauber)",
+	OPT_CASTS_THRESHOLD_TT = "Zeigt den Zauberzähler nur an, wenn höchstens so viele Zauber verfügbar sind (0 = immer anzeigen).",
+	OPT_THRESHOLD_ALL = "Alle",
 	OPT_HIDE_ON_COOLDOWN = "Wert während Abklingzeit ausblenden",
 	OPT_HIDE_ON_COOLDOWN_TT = "Blendet den mittleren Wert während einer Abklingzeit (außer GCD) aus, damit die Abklingzeit lesbar bleibt.",
 	OPT_COMPACT_NUMBERS = "Große Zahlen abkürzen (1.4k)",

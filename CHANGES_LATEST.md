@@ -1,14 +1,5 @@
-## [1.4.0] - 2026-11-22
-
-*Special thanks to **Vax** for suggesting cooldown hiding, spotting the key-spam framerate drop, and beta-testing this release!*
+## [1.4.1] - 2026-11-22
 
 ### Added
-- Automatically hide the center damage/healing stat while a spell is on a real cooldown (excluding the GCD and spells with remaining charges), keeping cooldown countdown numbers clearly readable.
-- New **"Hide center stat while on cooldown"** option in `/cm config` (enabled by default), localized across `enUS`, `frFR`, `deDE`, and `esES`.
-- Support Retail 12.1.5 secret cooldown values via `DurationObject` (`SetAlphaFromBoolean` / `isOnGCD`) with fallback support for WoW Forever (`16001`).
-
-### Fixed & Optimized
-- Eliminated framerate drops when spamming spell keys:
-  - Removed unnecessary full tooltip re-parses on `ACTIONBAR_UPDATE_STATE`.
-  - Skip hidden action buttons until shown (`OnShow`) and avoid re-parsing tooltips on `UpdateAction` / `OnButtonUpdate` when the spell has not changed.
-  - Coalesced GCD cooldown hook updates and throttled `UNIT_AURA` refreshes in combat.
+- **Center Remaining Casts mode**: You can now select **"Remaining casts (center only)"** as the center statistic in `/cm config` (or `/cm mode`), displaying remaining casts in the middle of action buttons (including utility/buff spells with a resource cost) while automatically disabling and greying out the bottom-right casts checkbox.
+- **Remaining Casts Display Threshold**: Added a **"Display threshold (max casts)"** slider (`0–100`, where `0 = All`) in `/cm config` to only show the remaining casts counter when at or below your chosen limit — works in both center and bottom-right modes, including in combat with Retail *secret values*.

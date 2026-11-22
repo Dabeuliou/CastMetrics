@@ -188,20 +188,37 @@ function ns.RefreshOptionsPreview()
 
 	-- Lecture du tooltip du sort pour alimenter l'aperçu
 	local parsed = ns.TooltipParser.GetSpellValues and ns.TooltipParser.GetSpellValues(spellID) or nil
-
-	if db.showDamage and parsed and ns.FormatCenterStat then
-		local text, r, g, b = ns.FormatCenterStat(parsed, spellID, db)
-		previewBox.overlay.dmgText:SetText(text)
-		previewBox.overlay.dmgText:SetTextColor(r, g, b)
-	else
-		previewBox.overlay.dmgText:SetText("")
+	local centerIsCasts = (db.centerStat == "casts")
+	local casts, isSecret, secretColor, secretAlpha
+	if ((db.showDamage and centerIsCasts) or (db.showCasts and not centerIsCasts))
+		and ns.ManaCalc
+		and ns.ManaCalc.GetRemainingCastsForSpell
+	then
+		casts, _, _, isSecret, secretColor, secretAlpha = ns.ManaCalc.GetRemainingCastsForSpell(spellID)
 	end
 
-	if db.showCasts and ns.ManaCalc and ns.ManaCalc.GetRemainingCastsForSpell and ns.RenderCastsText then
-		local casts, _, _, isSecret, secretColor = ns.ManaCalc.GetRemainingCastsForSpell(spellID)
-		ns.RenderCastsText(previewBox.overlay, casts, isSecret, secretColor, false)
+	if db.showDamage then
+		if centerIsCasts and ns.RenderCastsText then
+			ns.RenderCastsText(previewBox.overlay, casts, isSecret, secretColor, false, secretAlpha, "dmgText", "centerLastCasts")
+		elseif parsed and ns.FormatCenterStat then
+			local text, r, g, b = ns.FormatCenterStat(parsed, spellID, db)
+			previewBox.overlay.dmgText:SetText(text)
+			previewBox.overlay.dmgText:SetTextColor(r, g, b)
+			previewBox.overlay.dmgText:SetAlpha(1)
+		else
+			previewBox.overlay.dmgText:SetText("")
+			previewBox.overlay.dmgText:SetAlpha(1)
+		end
+	else
+		previewBox.overlay.dmgText:SetText("")
+		previewBox.overlay.dmgText:SetAlpha(1)
+	end
+
+	if db.showCasts and not centerIsCasts and ns.RenderCastsText then
+		ns.RenderCastsText(previewBox.overlay, casts, isSecret, secretColor, false, secretAlpha)
 	else
 		previewBox.overlay.castsText:SetText("")
+		previewBox.overlay.castsText:SetAlpha(1)
 	end
 end
 
@@ -239,10 +256,11 @@ local function RegisterCheckbox(category, varKey, label, tooltip, defaultValue, 
 			ns.RefreshOptionsPreview()
 		end
 	)
-	Settings.CreateCheckbox(category, setting, tooltip)
+	local initializer = Settings.CreateCheckbox(category, setting, tooltip)
+	return setting, initializer
 end
 
-local function RegisterSlider(category, varKey, label, tooltip, defaultValue, minVal, maxVal, step, onChanged)
+local function RegisterSlider(category, varKey, label, tooltip, defaultValue, minVal, maxVal, step, onChanged, formatter)
 	local setting = Settings.RegisterProxySetting(
 		category,
 		"CM_" .. varKey,
@@ -265,12 +283,13 @@ local function RegisterSlider(category, varKey, label, tooltip, defaultValue, mi
 
 	local sliderOptions = Settings.CreateSliderOptions(minVal, maxVal, step)
 	if MinimalSliderWithSteppersMixin and MinimalSliderWithSteppersMixin.Label then
-		sliderOptions:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, function(value)
+		sliderOptions:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, formatter or function(value)
 			return string.format("%d", value)
 		end)
 	end
 
-	Settings.CreateSlider(category, setting, sliderOptions, tooltip)
+	local initializer = Settings.CreateSlider(category, setting, sliderOptions, tooltip)
+	return setting, initializer
 end
 
 local function GetCenterStatOptions()
@@ -282,6 +301,7 @@ local function GetCenterStatOptions()
 	container:Add("crit", L["OPT_STAT_CRIT"])
 	container:Add("dpm", L["OPT_STAT_DPM"])
 	container:Add("dps", L["OPT_STAT_DPS"])
+	container:Add("casts", L["OPT_STAT_CASTS"])
 	return container:GetData()
 end
 
@@ -333,6 +353,7 @@ function ns.InitOptions()
 		end
 	)
 
+	local showCastsSetting, showCastsInitializer
 	local centerStatSetting = Settings.RegisterProxySetting(
 		category,
 		"CM_centerStat",
@@ -343,14 +364,19 @@ function ns.InitOptions()
 			return (CastMetricsDB and CastMetricsDB.centerStat) or "avg"
 		end,
 		function(value)
-			if CastMetricsDB then
+			if ns.SetCenterStat then
+				ns.SetCenterStat(value)
+			elseif CastMetricsDB then
 				CastMetricsDB.centerStat = value
+			end
+			if showCastsSetting and showCastsSetting.SetValue and CastMetricsDB then
+				pcall(showCastsSetting.SetValue, showCastsSetting, CastMetricsDB.showCasts)
 			end
 			ns.RequestUpdate(false)
 			ns.RefreshOptionsPreview()
 		end
 	)
-	Settings.CreateDropdown(
+	local centerStatInitializer = Settings.CreateDropdown(
 		category,
 		centerStatSetting,
 		GetCenterStatOptions,
@@ -387,7 +413,7 @@ function ns.InitOptions()
 	)
 
 	-- 2. Compteur de lancers en bas à droite
-	RegisterCheckbox(
+	showCastsSetting, showCastsInitializer = RegisterCheckbox(
 		category,
 		"showCasts",
 		L["OPT_SHOW_CASTS"],
@@ -397,6 +423,12 @@ function ns.InitOptions()
 			ns.RequestUpdate(true)
 		end
 	)
+
+	if showCastsInitializer and showCastsInitializer.SetParentInitializer and centerStatInitializer then
+		showCastsInitializer:SetParentInitializer(centerStatInitializer, function()
+			return (CastMetricsDB and CastMetricsDB.centerStat) ~= "casts"
+		end)
+	end
 
 	RegisterSlider(
 		category,
@@ -411,6 +443,27 @@ function ns.InitOptions()
 			if ns.RefreshOverlayFonts then
 				ns.RefreshOverlayFonts()
 			end
+		end
+	)
+
+	RegisterSlider(
+		category,
+		"castsThreshold",
+		L["OPT_CASTS_THRESHOLD"],
+		L["OPT_CASTS_THRESHOLD_TT"],
+		0,
+		0,
+		100,
+		1,
+		function()
+			ns.RequestUpdate(true)
+		end,
+		function(value)
+			local rounded = math.floor(value + 0.5)
+			if rounded <= 0 then
+				return L["OPT_THRESHOLD_ALL"]
+			end
+			return "<= " .. tostring(rounded)
 		end
 	)
 

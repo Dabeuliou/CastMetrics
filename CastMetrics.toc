@@ -6,7 +6,7 @@
 ## Notes-deDE: Zeigt Zauberschaden/-heilung, Effizienz (DPM/DPS) und verbleibende Zauber auf Aktionsbuttons und in Tooltips (Retail & Forever).
 ## Notes-esES: Muestra el daño/sanación, eficiencia (DPM/DPS) y lanzamientos restantes en tus botones de acción y tooltips (Retail & Forever).
 ## Notes-esMX: Muestra el daño/sanación, eficiencia (DPM/DPS) y lanzamientos restantes en tus botones de acción y tooltips (Retail & Forever).
-## Version: 1.4.0
+## Version: 1.4.1
 ## SavedVariables: CastMetricsDB
 
 Locales\Locale.lua

@@ -116,29 +116,45 @@ local function ApplyCastsColor(fs, casts)
 	end
 end
 
-local function RenderCastsText(overlay, casts, isSecret, secretColor, allowStale)
+local function RenderCastsToFontString(fs, lastCasts, casts, isSecret, secretColor, secretAlpha, allowStale)
+	local threshold = (CastMetricsDB and CastMetricsDB.castsThreshold) or 0
 	if casts ~= nil then
 		if isSecret then
 			-- SetFormattedText accepte les valeurs secrètes côté C++ (sans conversion tostring en Lua)
-			overlay.castsText:SetFormattedText("%d", casts)
+			fs:SetFormattedText("%d", casts)
 			if secretColor and not ns.IsSecret(secretColor) and secretColor.GetRGBA then
 				local r, g, b, a = secretColor:GetRGBA()
-				overlay.castsText:SetTextColor(r, g, b, a)
+				fs:SetTextColor(r, g, b, a)
 			else
-				overlay.castsText:SetTextColor(0.4, 0.85, 1)
+				fs:SetTextColor(0.4, 0.85, 1)
 			end
+			fs:SetAlpha(secretAlpha ~= nil and secretAlpha or 1)
+			return lastCasts
 		else
-			overlay.lastCasts = casts
-			overlay.castsText:SetText(tostring(casts))
-			ApplyCastsColor(overlay.castsText, casts)
+			fs:SetText(tostring(casts))
+			ApplyCastsColor(fs, casts)
+			fs:SetAlpha(1)
+			return casts
 		end
-	elseif isSecret and allowStale and overlay.lastCasts ~= nil then
-		overlay.castsText:SetText(tostring(overlay.lastCasts))
-		ApplyCastsColor(overlay.castsText, overlay.lastCasts)
+	elseif isSecret and allowStale and lastCasts ~= nil and (threshold <= 0 or lastCasts <= threshold) then
+		fs:SetText(tostring(lastCasts))
+		ApplyCastsColor(fs, lastCasts)
+		fs:SetAlpha(1)
+		return lastCasts
 	else
-		overlay.lastCasts = nil
-		overlay.castsText:SetText("")
+		fs:SetText("")
+		fs:SetAlpha(1)
+		return nil
 	end
+end
+
+local function RenderCastsText(overlay, casts, isSecret, secretColor, allowStale, secretAlpha, targetKey, lastField)
+	local fs = overlay[targetKey or "castsText"]
+	local key = lastField or "lastCasts"
+	if not fs then
+		return
+	end
+	overlay[key] = RenderCastsToFontString(fs, overlay[key], casts, isSecret, secretColor, secretAlpha, allowStale)
 end
 
 ns.RenderCastsText = RenderCastsText
@@ -186,13 +202,15 @@ function ns.GetButtonAction(button)
 end
 
 local function ApplyCooldownVisibility(overlay)
-	if not overlay or not overlay.dmgText then
+	local target = overlay and (overlay.dmgContainer or overlay.dmgText)
+	if not target then
 		return
 	end
 
 	local db = CastMetricsDB
-	if not db or not db.hideOnCooldown or not db.showDamage or not overlay.parsed then
-		overlay.dmgText:SetAlpha(1)
+	local hasCenterContent = overlay.parsed or (db and db.centerStat == "casts")
+	if not db or not db.hideOnCooldown or not db.showDamage or not hasCenterContent then
+		target:SetAlpha(1)
 		return
 	end
 
@@ -207,14 +225,14 @@ local function ApplyCooldownVisibility(overlay)
 		if ok and info and not ns.IsSecret(info) then
 			spellCDInfo = info
 			if info.isOnGCD == true then
-				overlay.dmgText:SetAlpha(1)
+				target:SetAlpha(1)
 				return
 			end
 		end
 	end
 
 	-- 2. Retail 12.x : DurationObject + SetAlphaFromBoolean (sûr même avec des secret values en combat)
-	if overlay.dmgText.SetAlphaFromBoolean then
+	if target.SetAlphaFromBoolean then
 		local durationObj = nil
 		if actionKind == "action" and actionValue and C_ActionBar and C_ActionBar.GetActionCooldownDuration then
 			local ok, obj = pcall(C_ActionBar.GetActionCooldownDuration, actionValue, true)
@@ -234,7 +252,7 @@ local function ApplyCooldownVisibility(overlay)
 		if durationObj and durationObj.IsZero then
 			local okZero, isZero = pcall(durationObj.IsZero, durationObj)
 			if okZero and isZero ~= nil then
-				overlay.dmgText:SetAlphaFromBoolean(isZero, 1, 0)
+				target:SetAlphaFromBoolean(isZero, 1, 0)
 				return
 			end
 		end
@@ -267,19 +285,23 @@ local function ApplyCooldownVisibility(overlay)
 		if isEnabled and startTime > 0 and duration > GCD_MAX_DURATION then
 			local remaining = (startTime + duration) - GetTime()
 			if remaining > 0.05 then
-				overlay.dmgText:SetAlpha(0)
+				target:SetAlpha(0)
 				return
 			end
 		end
 	end
 
-	overlay.dmgText:SetAlpha(1)
+	target:SetAlpha(1)
 end
 
 local function ClearOverlay(overlay)
+	if overlay.dmgContainer then
+		overlay.dmgContainer:SetAlpha(1)
+	end
 	overlay.dmgText:SetText("")
 	overlay.dmgText:SetAlpha(1)
 	overlay.castsText:SetText("")
+	overlay.castsText:SetAlpha(1)
 	overlay.actionKey = nil
 	overlay.actionKind = nil
 	overlay.actionValue = nil
@@ -287,6 +309,7 @@ local function ClearOverlay(overlay)
 	overlay.resolvedSpellID = nil
 	overlay.parsed = nil
 	overlay.lastCasts = nil
+	overlay.centerLastCasts = nil
 end
 
 local function UpdateButton(button, onlyMana)
@@ -356,29 +379,54 @@ local function UpdateButton(button, onlyMana)
 		activeParsed = ns.TooltipParser.ResolveComboTier(activeParsed, false)
 	end
 
-	-- 1. Affichage de la stat centrale choisie dans les options
-	if db.showDamage and activeParsed then
-		local text, r, g, b = FormatCenterStat(activeParsed, resolvedID, db)
-		overlay.dmgText:SetText(text)
-		overlay.dmgText:SetTextColor(r, g, b)
-		ApplyCooldownVisibility(overlay)
-	else
-		overlay.dmgText:SetText("")
-		overlay.dmgText:SetAlpha(1)
+	-- 1 & 2. Calcul du nombre de lancers possibles (utilisé au centre si centerStat == "casts", ou en bas à droite)
+	local centerIsCasts = (db.centerStat == "casts")
+	local needCasts = (db.showDamage and centerIsCasts) or (db.showCasts and not centerIsCasts)
+	local casts, isSecret, secretColor, secretAlpha
+	if needCasts and ns.ManaCalc then
+		if actionKind == "action" then
+			casts, _, _, isSecret, secretColor, secretAlpha = ns.ManaCalc.GetRemainingCasts(actionValue, overlay.spellID)
+		else
+			casts, _, _, isSecret, secretColor, secretAlpha = ns.ManaCalc.GetRemainingCastsForSpell(resolvedID)
+		end
 	end
 
-	-- 2. Affichage du nombre de lancers possibles avec la ressource actuelle
-	if db.showCasts then
-		local casts, _, _, isSecret, secretColor
-		if actionKind == "action" then
-			casts, _, _, isSecret, secretColor = ns.ManaCalc.GetRemainingCasts(actionValue, overlay.spellID)
+	-- 1. Affichage de la stat centrale choisie dans les options
+	if db.showDamage then
+		if centerIsCasts then
+			RenderCastsText(overlay, casts, isSecret, secretColor, sameAction, secretAlpha, "dmgText", "centerLastCasts")
+			ApplyCooldownVisibility(overlay)
+		elseif activeParsed then
+			overlay.centerLastCasts = nil
+			local text, r, g, b = FormatCenterStat(activeParsed, resolvedID, db)
+			overlay.dmgText:SetText(text)
+			overlay.dmgText:SetTextColor(r, g, b)
+			overlay.dmgText:SetAlpha(1)
+			ApplyCooldownVisibility(overlay)
 		else
-			casts, _, _, isSecret, secretColor = ns.ManaCalc.GetRemainingCastsForSpell(resolvedID)
+			overlay.centerLastCasts = nil
+			overlay.dmgText:SetText("")
+			overlay.dmgText:SetAlpha(1)
+			if overlay.dmgContainer then
+				overlay.dmgContainer:SetAlpha(1)
+			end
 		end
-		RenderCastsText(overlay, casts, isSecret, secretColor, sameAction)
+	else
+		overlay.centerLastCasts = nil
+		overlay.dmgText:SetText("")
+		overlay.dmgText:SetAlpha(1)
+		if overlay.dmgContainer then
+			overlay.dmgContainer:SetAlpha(1)
+		end
+	end
+
+	-- 2. Affichage du nombre de lancers possibles en bas à droite (désactivé si déjà affiché au centre)
+	if db.showCasts and not centerIsCasts then
+		RenderCastsText(overlay, casts, isSecret, secretColor, sameAction, secretAlpha)
 	else
 		overlay.lastCasts = nil
 		overlay.castsText:SetText("")
+		overlay.castsText:SetAlpha(1)
 	end
 end
 
@@ -403,8 +451,9 @@ local function UpdateButtonSmart(button)
 	local currentSpell = (actionKind == "action" and ns.ManaCalc and ns.ManaCalc.ResolveSpellID)
 			and ns.ManaCalc.ResolveSpellID(actionValue, overlay.spellID)
 		or ((actionKind == "spell") and actionValue or overlay.spellID)
+	local db = CastMetricsDB
 	local sameSpell = (overlay.actionKey == actionKey)
-		and (overlay.parsed ~= nil)
+		and (overlay.parsed ~= nil or (db and db.centerStat == "casts"))
 		and (currentSpell ~= nil and currentSpell == overlay.resolvedSpellID)
 
 	UpdateButton(button, sameSpell)
@@ -425,10 +474,15 @@ local function RegisterButton(button)
 	container:SetAllPoints(button)
 	container:SetFrameLevel((button:GetFrameLevel() or 1) + 5)
 
+	-- Sous-conteneur pour la stat centrale afin que l'alpha du cooldown soit indépendant du seuil de casts
+	local dmgContainer = CreateFrame("Frame", nil, container)
+	dmgContainer:SetAllPoints(container)
+
 	local db = CastMetricsDB
 	overlays[button] = {
 		container = container,
-		dmgText = CreateOverlayFontString(container, "CENTER", 0, 0, db and db.centerFontSize or 11),
+		dmgContainer = dmgContainer,
+		dmgText = CreateOverlayFontString(dmgContainer, "CENTER", 0, 0, db and db.centerFontSize or 11),
 		castsText = CreateOverlayFontString(container, "BOTTOMRIGHT", -3, 3, db and db.castsFontSize or 10),
 		actionKey = nil,
 		spellID = nil,

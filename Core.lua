@@ -6,11 +6,12 @@ local addonName, ns = ...
 -- Valeurs par défaut de la configuration sauvegardée (SavedVariables)
 local DEFAULT_DB = {
 	showDamage = true,
-	centerStat = "avg", -- "avg", "weighted", "range", "crit", "dpm", "dps"
+	centerStat = "avg", -- "avg", "weighted", "range", "crit", "dpm", "dps", "casts"
 	centerFontSize = 11,
 	hideOnCooldown = true,
 	showCasts = true,
 	castsFontSize = 10,
+	castsThreshold = 0, -- 0 = toujours afficher, >0 = afficher si lancers <= seuil
 	showTooltipStats = true,
 	compactNumbers = true, -- ex: 1450 -> 1.4k
 	previewSpellID = 0, -- 0 = sélection automatique du premier sort trouvé sur les barres
@@ -198,6 +199,24 @@ local function RunDebug(slotArg)
 	end
 end
 
+function ns.SetCenterStat(value)
+	local db = CastMetricsDB
+	if not db then
+		return
+	end
+
+	db.centerStat = value
+	if value == "casts" then
+		if db.showCasts then
+			db._savedShowCasts = true
+			db.showCasts = false
+		end
+	elseif db._savedShowCasts ~= nil then
+		db.showCasts = db._savedShowCasts
+		db._savedShowCasts = nil
+	end
+end
+
 -- Gestionnaire des commandes slash (/cm ou /castmetrics)
 SLASH_CASTMETRICS1 = "/cm"
 SLASH_CASTMETRICS2 = "/castmetrics"
@@ -224,7 +243,7 @@ SlashCmdList["CASTMETRICS"] = function(msg)
 		db.showTooltipStats = not db.showTooltipStats
 		print("|cff00ccff[CastMetrics]|r " .. string.format(L["CMD_TOOLTIP"], db.showTooltipStats and L["STATE_ON"] or L["STATE_OFF"]))
 	elseif cmd == "mode" then
-		local order = { "avg", "weighted", "range", "crit", "dpm", "dps" }
+		local order = { "avg", "weighted", "range", "crit", "dpm", "dps", "casts" }
 		local nextStat = order[1]
 		for i, statKey in ipairs(order) do
 			if db.centerStat == statKey then
@@ -232,7 +251,7 @@ SlashCmdList["CASTMETRICS"] = function(msg)
 				break
 			end
 		end
-		db.centerStat = nextStat
+		ns.SetCenterStat(nextStat)
 		print("|cff00ccff[CastMetrics]|r " .. string.format(L["CMD_CENTER_STAT"], db.centerStat))
 		ns.RequestUpdate(false)
 	elseif cmd == "compact" then

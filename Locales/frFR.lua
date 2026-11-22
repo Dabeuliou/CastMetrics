@@ -37,6 +37,7 @@ local ui = {
 	OPT_STAT_CRIT = "Coup critique estimé",
 	OPT_STAT_DPM = "Efficacité (DPM / HPM / DPR)",
 	OPT_STAT_DPS = "DPS / HPS (par temps de cast)",
+	OPT_STAT_CASTS = "Lancers possibles (au centre)",
 	OPT_PREVIEW_AUTO = "Automatique (1er sort des barres)",
 
 	OPT_SHOW_DAMAGE = "Afficher la stat centrale",
@@ -49,6 +50,9 @@ local ui = {
 	OPT_SHOW_CASTS_TT = "Affiche en bas à droite combien de fois vous pouvez lancer le sort avec votre ressource actuelle.",
 	OPT_CASTS_FONT_SIZE = "Taille du compteur de lancers",
 	OPT_CASTS_FONT_SIZE_TT = "Ajuste la taille de la police du compteur en bas à droite du bouton.",
+	OPT_CASTS_THRESHOLD = "Seuil d'apparition des lancers",
+	OPT_CASTS_THRESHOLD_TT = "N'affiche le compteur de lancers possibles qu'en dessous ou égal à ce seuil (0 = toujours afficher).",
+	OPT_THRESHOLD_ALL = "Tous",
 	OPT_HIDE_ON_COOLDOWN = "Masquer la stat pendant le temps de recharge",
 	OPT_HIDE_ON_COOLDOWN_TT = "Masque le chiffre central lorsqu'un sort est en recharge (hors GCD) pour ne pas recouvrir le compteur de recharge.",
 	OPT_COMPACT_NUMBERS = "Format court des grands nombres (1.4k)",

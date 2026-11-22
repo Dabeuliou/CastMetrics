@@ -90,9 +90,10 @@ function ManaCalc.GetSpellResourceCost(spellID)
 	return fallbackCost, fallbackType, hadSecret
 end
 
--- Caches des courbes C_CurveUtil (indexées par "cost:maxPower") et des maximums de ressource connus
+-- Caches des courbes C_CurveUtil (indexées par "cost:maxPower" / "cost:maxPower:threshold") et des maximums de ressource connus
 local stepCurveCache = {}
 local colorCurveCache = {}
+local alphaCurveCache = {}
 local lastKnownMaxPower = {}
 
 local function GetMaxPower(powerType)
@@ -185,11 +186,36 @@ local function GetOrCreateColorCurve(cost, maxPower)
 	return curve
 end
 
--- Retourne (nombreDeCastsRestants, coutRessource, powerType, isSecret, secretColor) pour un spellID donné
+local function GetOrCreateAlphaCurve(cost, maxPower, threshold)
+	if not threshold or threshold <= 0 or ((threshold + 1) * cost) > maxPower then
+		return nil
+	end
+
+	local key = cost .. ":" .. maxPower .. ":" .. threshold
+	local curve = alphaCurveCache[key]
+	if curve then
+		return curve
+	end
+
+	if not C_CurveUtil or not C_CurveUtil.CreateCurve or not Enum or not Enum.LuaCurveType then
+		return nil
+	end
+
+	curve = C_CurveUtil.CreateCurve()
+	curve:SetType(Enum.LuaCurveType.Step)
+	curve:AddPoint(0, 1)
+	local hideRatio = math.max(0.0001, math.min(1, ((threshold + 1) * cost) / maxPower - 1e-5))
+	curve:AddPoint(hideRatio, 0)
+
+	alphaCurveCache[key] = curve
+	return curve
+end
+
+-- Retourne (nombreDeCastsRestants, coutRessource, powerType, isSecret, secretColor, secretAlpha) pour un spellID donné
 function ManaCalc.GetRemainingCastsForSpell(spellID)
 	local cost, powerType, costSecret = ManaCalc.GetSpellResourceCost(spellID)
 	if not cost or cost <= 0 or powerType == nil then
-		return nil, nil, nil, costSecret, nil
+		return nil, nil, nil, costSecret, nil, 1
 	end
 
 	-- Met à jour le cache de maxPower dès qu'il est lisible
@@ -197,8 +223,10 @@ function ManaCalc.GetRemainingCastsForSpell(spellID)
 
 	local currentPower = UnitPower("player", powerType)
 	if not currentPower then
-		return nil, cost, powerType, false, nil
+		return nil, cost, powerType, false, nil, 1
 	end
+
+	local threshold = (CastMetricsDB and CastMetricsDB.castsThreshold) or 0
 
 	-- Si la ressource est "secrète", on passe les courbes à l'API C++ UnitPowerPercent (autorisée même depuis du code addon)
 	if ns.IsSecret(currentPower) then
@@ -215,14 +243,27 @@ function ManaCalc.GetRemainingCastsForSpell(spellID)
 							secretColor = evalColor
 						end
 					end
-					return secretCasts, cost, powerType, true, secretColor
+					local secretAlpha = 1
+					local alphaCurve = GetOrCreateAlphaCurve(cost, maxPower, threshold)
+					if alphaCurve then
+						local okAlpha, evalAlpha = pcall(UnitPowerPercent, "player", powerType, false, alphaCurve)
+						if okAlpha and evalAlpha ~= nil then
+							secretAlpha = evalAlpha
+						end
+					end
+					return secretCasts, cost, powerType, true, secretColor, secretAlpha
 				end
 			end
 		end
-		return nil, cost, powerType, true, nil
+		return nil, cost, powerType, true, nil, 1
 	end
 
-	return math.floor(currentPower / cost), cost, powerType, false, nil
+	local casts = math.floor(currentPower / cost)
+	if threshold > 0 and casts > threshold then
+		return nil, cost, powerType, false, nil, 0
+	end
+
+	return casts, cost, powerType, false, nil, 1
 end
 
 -- Retourne (nombreDeCastsRestants, coutRessource, powerType, isSecret, secretColor) pour un slot donné
