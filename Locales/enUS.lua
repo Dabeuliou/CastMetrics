@@ -62,6 +62,7 @@ local ui = {
 	WORD_DAMAGE = "Damage",
 	TAG_CAST = "%.1fs cast",
 	TAG_GCD = "%.2gs GCD",
+	TAG_CD = "%s CD",
 	COMBO_PT_SINGULAR = " (%d pt)",
 	COMBO_PT_PLURAL = " (%d pts)",
 
@@ -70,10 +71,10 @@ local ui = {
 	TT_TOTAL_DURATION = "Total %s (%gs)%s",
 	TT_AVERAGE = "Average %s%s",
 	TT_CRIT = "Crit (%s)",
-	TT_CRIT_TOTAL_FMT = "%.1f (total %.1f)",
-	TT_CRIT_MAX = "Max crit (%s)",
-	TT_WEIGHTED_AVG = "Crit-weighted avg",
+	TT_CRIT_TICK = "Crit / tick (%s)",
+	TT_WEIGHTED_AVG_PCT = "Crit-weighted avg (%.1f%%)",
 	TT_PER_SEC_VALUE = "%.1f / s",
+	TT_PER_GCD = "%s per GCD (%s)",
 	TT_PERIODIC_DPS = "Periodic %s (%gs)",
 	TT_REMAINING_CASTS = "Remaining casts",
 }
@@ -85,7 +86,7 @@ local parser = {
 	healDetectPatterns = {
 		"heals?[%s%p]",
 		"healing",
-		"restores?%s+%d+.-health",
+		"restores?%s+%d+[%.,]?%d*%%?.-health",
 	},
 	damageDetectPatterns = {
 		"%d+[^%.]-damage",
@@ -116,8 +117,10 @@ local parser = {
 		{ pattern = "(%d+)%s+%a+%s+damage", kind = "damage", range = false },
 		{ pattern = "(%d+)%s+damage", kind = "damage", range = false },
 		{ pattern = "weapon damage[^%d]*plus%s+(%d+)", kind = "damage", range = false },
+		{ pattern = "heals?[^%d%%%.]*(%d+[%.,]?%d*)%s*%%%s+[^%.]-health", kind = "heal", requiresLineKind = "heal", isHealthPct = true },
+		{ pattern = "restores?[^%d%%%.]*(%d+[%.,]?%d*)%s*%%%s+[^%.]-health", kind = "heal", requiresLineKind = "heal", isHealthPct = true },
 		{ pattern = "(%d+)%s+health", kind = "heal", range = false, requiresLineKind = "heal" },
-		{ pattern = "for%s+(%d+)[%s%p]", kind = "heal", range = false, requiresLineKind = "heal" },
+		{ pattern = "for%s+(%d+)[%s%.,;]", kind = "heal", range = false, requiresLineKind = "heal", avoidNextWords = { "^secs?", "^mins?", "^yds?", "^yards?", "^targets?", "^allies", "^enem" } },
 		{ pattern = "heals?%s+(%d+)", kind = "heal", range = false, requiresLineKind = "heal" },
 		{ pattern = "restores?%s+(%d+)", kind = "heal", range = false, requiresLineKind = "heal" },
 		{ pattern = "another%s+(%d+)", useLineKind = true, range = false },
@@ -152,6 +155,14 @@ local parser = {
 	},
 	beforeDurationPatterns = {
 		"over%s+([%d%.,]+)%s+sec[^%d]*$",
+	},
+	cooldownSecPatterns = {
+		"([%d%.,]+)%s+sec%s+cooldown",
+		"([%d%.,]+)%s+sec%s+recharge",
+	},
+	cooldownMinPatterns = {
+		"([%d%.,]+)%s+min%s+cooldown",
+		"([%d%.,]+)%s+min%s+recharge",
 	},
 	conjunctionWords = { "and", "plus" },
 }

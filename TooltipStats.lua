@@ -137,10 +137,14 @@ function TooltipStats.ComputeMetrics(parsed, spellID)
 	local directAvg = (parsed.directMin + parsed.directMax) / 2
 	local dotAvg = (parsed.dotMin + parsed.dotMax) / 2
 	local cost, powerType = ns.ManaCalc.GetSpellResourceCost(spellID)
-	local critPct, critMult = GetPlayerCritInfo(parsed.school, isHeal, powerType)
+	local canCrit = (parsed.canCrit ~= false)
+	local critPct, critMult = nil, 1.0
+	if canCrit then
+		critPct, critMult = GetPlayerCritInfo(parsed.school, isHeal, powerType)
+	end
 
 	local weightedAvg = parsed.avg
-	if critPct then
+	if canCrit and critPct then
 		if ns.IS_RETAIL then
 			-- Sur Retail, les DoT / HoT peuvent aussi faire des coups critiques
 			weightedAvg = parsed.avg * (1 + (critPct / 100) * (critMult - 1))
@@ -150,16 +154,10 @@ function TooltipStats.ComputeMetrics(parsed, spellID)
 		end
 	end
 
-	local critDirect = (directAvg > 0) and (directAvg * critMult) or nil
-	local critTotal
-	if ns.IS_RETAIL then
-		local critDot = (dotAvg > 0) and (dotAvg * critMult) or 0
-		if critDirect or critDot > 0 then
-			critTotal = (critDirect or 0) + critDot
-		end
-	else
-		critTotal = critDirect and (critDirect + dotAvg) or nil
-	end
+	local critDirect = (canCrit and directAvg > 0) and (directAvg * critMult) or nil
+	local critTick = (canCrit and directAvg == 0 and parsed.ticks and parsed.ticks > 1 and dotAvg > 0)
+			and ((dotAvg / parsed.ticks) * critMult)
+		or nil
 
 	local dpm, effCode, resName
 	if cost and cost > 0 and powerType ~= nil then
@@ -174,8 +172,40 @@ function TooltipStats.ComputeMetrics(parsed, spellID)
 	local gcd = GetEffectiveGCD(isEnergy)
 	local effectiveSec = math.max(castSec, gcd)
 	local perSecCode = isHeal and "HPS" or "DPS"
-	local castTag = (castSec > gcd) and string.format(L["TAG_CAST"], castSec) or string.format(L["TAG_GCD"], gcd)
-	local dps = weightedAvg / effectiveSec
+	local execTag = (castSec > gcd) and string.format(L["TAG_CAST"], castSec) or string.format(L["TAG_GCD"], gcd)
+
+	local cooldownSec = (parsed.cooldown and parsed.cooldown > 0) and parsed.cooldown or nil
+	if not cooldownSec and spellID then
+		if C_Spell and C_Spell.GetSpellCharges then
+			local ok, chargeInfo = pcall(C_Spell.GetSpellCharges, spellID)
+			if ok and chargeInfo and not ns.IsSecret(chargeInfo) and chargeInfo.cooldownDuration and not ns.IsSecret(chargeInfo.cooldownDuration) and chargeInfo.cooldownDuration > 0 then
+				cooldownSec = chargeInfo.cooldownDuration
+			end
+		end
+		if not cooldownSec and GetSpellBaseCooldown then
+			local ok, cdMs = pcall(GetSpellBaseCooldown, spellID)
+			if ok and type(cdMs) == "number" and not ns.IsSecret(cdMs) and cdMs > 0 then
+				cooldownSec = cdMs / 1000
+			end
+		end
+	end
+
+	local hasCooldown = (cooldownSec ~= nil and cooldownSec > effectiveSec + 0.05)
+	local isPurePeriodic = (directAvg == 0 and dotAvg > 0 and parsed.duration and parsed.duration > 0)
+	local sustainedSec = hasCooldown and math.max(effectiveSec, cooldownSec) or effectiveSec
+
+	local cdText
+	if hasCooldown then
+		if cooldownSec >= 60 then
+			cdText = string.format("%.2gm", cooldownSec / 60)
+		else
+			cdText = string.format("%.2gs", cooldownSec)
+		end
+	end
+
+	local castTag = hasCooldown and string.format(L["TAG_CD"], cdText) or execTag
+	local dps = weightedAvg / sustainedSec
+	local execDps = (isPurePeriodic and not hasCooldown) and (weightedAvg / effectiveSec) or nil
 	local dotDps = (dotAvg > 0 and parsed.duration and parsed.duration > 0) and (dotAvg / parsed.duration) or nil
 
 	return {
@@ -187,7 +217,7 @@ function TooltipStats.ComputeMetrics(parsed, spellID)
 		critPct = critPct,
 		critMult = critMult,
 		critDirect = critDirect,
-		critTotal = critTotal,
+		critTick = critTick,
 		weightedAvg = weightedAvg,
 		cost = cost,
 		powerType = powerType,
@@ -197,6 +227,10 @@ function TooltipStats.ComputeMetrics(parsed, spellID)
 		dps = dps,
 		perSecCode = perSecCode,
 		castTag = castTag,
+		execTag = execTag,
+		execDps = execDps,
+		hasCooldown = hasCooldown,
+		isPurePeriodic = isPurePeriodic,
 		dotDps = dotDps,
 	}
 end
@@ -262,23 +296,17 @@ local function AppendSpellStats(tooltip, data)
 		tooltip:AddDoubleLine(string.format(L["TT_AVERAGE"], m.kindWord, cpTag), string.format("%.1f", m.avg), lr, lg, lb, vr, vg, vb)
 	end
 
-	-- 2. Coup critique et moyenne pondérée avec le % de critique réel
-	if m.critDirect or m.critTotal then
+	-- 2. Coup critique (coup direct ou par tick) et moyenne pondérée avec le % de critique réel
+	if m.critDirect or m.critTick or m.critPct then
 		local critTag = m.critPct and string.format("×%.1f | %.1f%%", m.critMult, m.critPct) or string.format("×%.1f", m.critMult)
-		if m.critDirect and m.dotAvg > 0 then
-			tooltip:AddDoubleLine(
-				string.format(L["TT_CRIT"], critTag),
-				string.format(L["TT_CRIT_TOTAL_FMT"], m.critDirect, m.critTotal or m.critDirect),
-				lr, lg, lb, 1, 0.95, 0.55
-			)
-		elseif m.critDirect then
+		if m.critDirect then
 			tooltip:AddDoubleLine(string.format(L["TT_CRIT"], critTag), string.format("%.1f", m.critDirect), lr, lg, lb, 1, 0.95, 0.55)
-		elseif m.critTotal then
-			tooltip:AddDoubleLine(string.format(L["TT_CRIT_MAX"], critTag), string.format("%.1f", m.critTotal), lr, lg, lb, 1, 0.95, 0.55)
+		elseif m.critTick then
+			tooltip:AddDoubleLine(string.format(L["TT_CRIT_TICK"], critTag), string.format("%.1f", m.critTick), lr, lg, lb, 1, 0.95, 0.55)
 		end
 
 		if m.critPct then
-			tooltip:AddDoubleLine(L["TT_WEIGHTED_AVG"], string.format("%.1f", m.weightedAvg), lr, lg, lb, vr, vg, vb)
+			tooltip:AddDoubleLine(string.format(L["TT_WEIGHTED_AVG_PCT"], m.critPct), string.format("%.1f", m.weightedAvg), lr, lg, lb, vr, vg, vb)
 		end
 	end
 
@@ -291,18 +319,33 @@ local function AppendSpellStats(tooltip, data)
 		)
 	end
 
-	tooltip:AddDoubleLine(
-		string.format("%s (%s)", m.perSecCode, m.castTag),
-		string.format(L["TT_PER_SEC_VALUE"], m.dps),
-		lr, lg, lb, 1, 0.65, 0.25
-	)
-
-	if m.dotDps and parsed.duration then
+	if m.isPurePeriodic and not m.hasCooldown and m.dotDps and parsed.duration then
 		tooltip:AddDoubleLine(
 			string.format(L["TT_PERIODIC_DPS"], m.perSecCode, parsed.duration),
 			string.format(L["TT_PER_SEC_VALUE"], m.dotDps),
 			lr, lg, lb, 0.85, 0.7, 0.4
 		)
+		if m.execDps then
+			tooltip:AddDoubleLine(
+				string.format(L["TT_PER_GCD"], m.perSecCode, m.execTag),
+				string.format(L["TT_PER_SEC_VALUE"], m.execDps),
+				lr, lg, lb, 1, 0.65, 0.25
+			)
+		end
+	else
+		tooltip:AddDoubleLine(
+			string.format("%s (%s)", m.perSecCode, m.castTag),
+			string.format(L["TT_PER_SEC_VALUE"], m.dps),
+			lr, lg, lb, 1, 0.65, 0.25
+		)
+
+		if m.dotDps and parsed.duration then
+			tooltip:AddDoubleLine(
+				string.format(L["TT_PERIODIC_DPS"], m.perSecCode, parsed.duration),
+				string.format(L["TT_PER_SEC_VALUE"], m.dotDps),
+				lr, lg, lb, 0.85, 0.7, 0.4
+			)
+		end
 	end
 
 	-- 4. Lancers restants (uniquement si UnitPower est lisible directement)

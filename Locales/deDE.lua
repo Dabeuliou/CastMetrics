@@ -66,6 +66,7 @@ local ui = {
 	WORD_DAMAGE = "Schaden",
 	TAG_CAST = "%.1fs Zauber",
 	TAG_GCD = "%.2gs GCD",
+	TAG_CD = "%s Abkl.",
 	COMBO_PT_SINGULAR = " (%d Pkt.)",
 	COMBO_PT_PLURAL = " (%d Pkt.)",
 
@@ -74,10 +75,10 @@ local ui = {
 	TT_TOTAL_DURATION = "%s gesamt (%gs)%s",
 	TT_AVERAGE = "%s (Ø)%s",
 	TT_CRIT = "Kritisch (%s)",
-	TT_CRIT_TOTAL_FMT = "%.1f (gesamt %.1f)",
-	TT_CRIT_MAX = "Max. Krit (%s)",
-	TT_WEIGHTED_AVG = "Krit-gewichteter Ø",
+	TT_CRIT_TICK = "Kritisch / Tick (%s)",
+	TT_WEIGHTED_AVG_PCT = "Krit-gewichteter Ø (%.1f%%)",
 	TT_PER_SEC_VALUE = "%.1f / Sek.",
+	TT_PER_GCD = "%s pro GCD (%s)",
 	TT_PERIODIC_DPS = "%s periodisch (%gs)",
 	TT_REMAINING_CASTS = "Verbleibende Zauber",
 }
@@ -90,6 +91,7 @@ local parser = {
 		"heilt[^%.]-%d+",
 		"heilen[^%.]-%d+",
 		"stellt[^%.]-%d+[^%.]-gesundheit",
+		"%d+[%.,]?%d*%s*%%[^%.]-gesundheit",
 		"%d+%s+gesundheit",
 		"heilung",
 	},
@@ -119,9 +121,12 @@ local parser = {
 		{ pattern = "(%d+[%.,]?%d*)%s+[^%d%.,]+schaden", kind = "damage",    range = false },
 		{ pattern = "(%d+[%.,]?%d*)%s+schaden",          kind = "damage",    range = false },
 		{ pattern = "waffenschaden[^%d]*plus%s+(%d+)",   kind = "damage",    range = false },
+		{ pattern = "um%s+(%d+[%.,]?%d*)%s*%%%s+[^%.]-gesundheit", kind = "heal", requiresLineKind = "heal", isHealthPct = true },
+		{ pattern = "stellt[^%d%%%.]*(%d+[%.,]?%d*)%s*%%%s+[^%.]-gesundheit", kind = "heal", requiresLineKind = "heal", isHealthPct = true },
+		{ pattern = "heilt[^%d%%%.]*(%d+[%.,]?%d*)%s*%%%s+[^%.]-gesundheit", kind = "heal", requiresLineKind = "heal", isHealthPct = true },
 		{ pattern = "um%s+(%d+)%s+gesundheit",           kind = "heal",      range = false, requiresLineKind = "heal" },
 		{ pattern = "(%d+)%s+gesundheit",                kind = "heal",      range = false, requiresLineKind = "heal" },
-		{ pattern = "um%s+(%d+)[%s%p]",                  kind = "heal",      range = false, requiresLineKind = "heal" },
+		{ pattern = "um%s+(%d+)[%s%.,;]",                kind = "heal",      range = false, requiresLineKind = "heal" },
 		{ pattern = "weitere%s+(%d+)",                   useLineKind = true, range = false },
 	},
 
@@ -156,6 +161,17 @@ local parser = {
 	},
 	beforeDurationPatterns = {
 		"im verlauf von%s+([%d%.,]+)%s+sec[^%d]*$",
+	},
+	beforeIntervalDurationPatterns = {
+		"([%d%.,]+)%s+sec%s+lang%s+alle%s+([%d%.,]+)%s+sec[^%d]*$",
+	},
+	cooldownSecPatterns = {
+		"([%d%.,]+)%s+sec%s+abklingzeit",
+		"([%d%.,]+)%s+sec%s+wiederaufladung",
+	},
+	cooldownMinPatterns = {
+		"([%d%.,]+)%s+min%s+abklingzeit",
+		"([%d%.,]+)%s+min%s+wiederaufladung",
 	},
 	conjunctionWords = { "und", "sowie", "plus" },
 }

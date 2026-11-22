@@ -3,6 +3,23 @@ local _, ns = ...
 local TooltipParser = {}
 ns.TooltipParser = TooltipParser
 
+local lastKnownMaxHealth = nil
+
+local function GetPlayerMaxHealth()
+	if UnitHealthMax then
+		local rawMax = UnitHealthMax("player")
+		if rawMax and not ns.IsSecret(rawMax) and rawMax > 0 then
+			lastKnownMaxHealth = rawMax
+			return rawMax
+		end
+	end
+	return lastKnownMaxHealth
+end
+
+function TooltipParser.CacheMaxHealth()
+	GetPlayerMaxHealth()
+end
+
 local function GetRules()
 	return ns.GetParserLocale and ns.GetParserLocale() or nil
 end
@@ -121,6 +138,8 @@ local function MakeResult(minVal, maxVal, kind, details)
 		dotMin = details and details.dotMin or 0,
 		dotMax = details and details.dotMax or 0,
 		duration = details and details.duration or nil,
+		ticks = details and details.ticks or nil,
+		canCrit = not (details and details.canCrit == false),
 	}
 end
 
@@ -142,18 +161,42 @@ local function NormalizeDurationUnits(text, rules)
 	return out
 end
 
+-- Extrait la phrase courante après endIdx sans couper sur les décimales ("1,9" / "1.9")
+local function ExtractSentenceAfter(lower, endIdx)
+	local raw = lower:sub(endIdx + 1, endIdx + 140)
+	local protected = raw:gsub("(%d),(%d)", "%1.%2")
+	return protected:match("^(.-)%.%s") or protected:match("^(.-)%.$") or protected
+end
+
 -- Si un segment indique "toutes les X sec pendant Y sec", multiplie par le nombre de ticks
-local function GetTickMultiplier(lower, endIdx, rules)
+local function GetTickMultiplier(lower, startIdx, endIdx, rules)
 	if not rules then
 		return 1
 	end
 
-	local after = NormalizeDurationUnits(lower:sub(endIdx + 1, endIdx + 64), rules)
-	local clause = after:match("^[^%.,]+") or after
+	local clause = NormalizeDurationUnits(ExtractSentenceAfter(lower, endIdx), rules)
 
 	if rules.intervalDurationPatterns then
 		for _, pat in ipairs(rules.intervalDurationPatterns) do
 			local interval, duration = clause:match(pat)
+			if interval and duration then
+				local iv = ParseDecimal(interval)
+				local dur = ParseDecimal(duration)
+				if iv and dur and iv > 0 then
+					local ticks = math.floor((dur / iv) + 0.5)
+					if ticks >= 1 and ticks <= 60 then
+						return ticks
+					end
+				end
+			end
+		end
+	end
+
+	if rules.beforeIntervalDurationPatterns and startIdx and startIdx > 1 then
+		local beforeRaw = lower:sub(math.max(1, startIdx - 72), startIdx - 1):gsub("(%d),(%d)", "%1.%2")
+		local before = NormalizeDurationUnits(beforeRaw, rules)
+		for _, pat in ipairs(rules.beforeIntervalDurationPatterns) do
+			local duration, interval = before:match(pat)
 			if interval and duration then
 				local iv = ParseDecimal(interval)
 				local dur = ParseDecimal(duration)
@@ -188,7 +231,7 @@ local function GetSegmentDuration(lower, startIdx, endIdx, rules)
 		return nil
 	end
 
-	local after = NormalizeDurationUnits(lower:sub(endIdx + 1, endIdx + 64), rules)
+	local after = NormalizeDurationUnits(ExtractSentenceAfter(lower, endIdx), rules)
 	local dur = nil
 
 	if rules.overDurationPatterns then
@@ -223,10 +266,23 @@ local function GetSegmentDuration(lower, startIdx, endIdx, rules)
 	end
 
 	if not dur and rules.beforeDurationPatterns and startIdx and startIdx > 1 then
-		local before = NormalizeDurationUnits(lower:sub(math.max(1, startIdx - 48), startIdx - 1), rules)
+		local beforeRaw = lower:sub(math.max(1, startIdx - 72), startIdx - 1):gsub("(%d),(%d)", "%1.%2")
+		local before = NormalizeDurationUnits(beforeRaw, rules)
 		for _, pat in ipairs(rules.beforeDurationPatterns) do
 			dur = before:match(pat)
 			if dur then
+				break
+			end
+		end
+	end
+
+	if not dur and rules.beforeIntervalDurationPatterns and startIdx and startIdx > 1 then
+		local beforeRaw = lower:sub(math.max(1, startIdx - 72), startIdx - 1):gsub("(%d),(%d)", "%1.%2")
+		local before = NormalizeDurationUnits(beforeRaw, rules)
+		for _, pat in ipairs(rules.beforeIntervalDurationPatterns) do
+			local intervalDur = before:match(pat)
+			if intervalDur then
+				dur = intervalDur
 				break
 			end
 		end
@@ -241,7 +297,7 @@ local function GetSegmentDuration(lower, startIdx, endIdx, rules)
 
 	if rules.intervalDurationPatterns then
 		for _, pat in ipairs(rules.intervalDurationPatterns) do
-			local _, tickDur = after:match("^[^%.,%d]*" .. pat)
+			local _, tickDur = after:match(pat)
 			if tickDur then
 				local num = ParseDecimal(tickDur)
 				if num and num > 0 and num <= 120 then
@@ -279,17 +335,36 @@ function TooltipParser.ParseLine(rawText, fallbackKind)
 	local pos = 1
 
 	while pos <= #lower do
-		local bestStart, bestEnd, bestMin, bestMax, bestKind
+		local bestStart, bestEnd, bestMin, bestMax, bestKind, bestIsHealthPct
 
 		for _, spec in ipairs(rules.chunkPatterns) do
 			if not spec.requiresLineKind or spec.requiresLineKind == lineKind then
 				local s, e, c1, c2 = lower:find(spec.pattern, pos)
+				if s and spec.avoidNextWords then
+					local tail = lower:sub(e + 1, e + 16)
+					for _, badNext in ipairs(spec.avoidNextWords) do
+						if tail:find(badNext) then
+							s = nil
+							break
+						end
+					end
+				end
 				if s and (not bestStart or s < bestStart) then
 					bestStart = s
 					bestEnd = e
 					bestKind = spec.useLineKind and lineKind or spec.kind
+					bestIsHealthPct = spec.isHealthPct and true or false
 					bestMin = ParseDecimal(c1)
 					bestMax = ParseDecimal(spec.range and c2 or c1)
+					if spec.isHealthPct and bestMin and bestMax then
+						local maxHealth = GetPlayerMaxHealth()
+						if maxHealth and maxHealth > 0 then
+							bestMin = bestMin * (maxHealth / 100)
+							bestMax = bestMax * (maxHealth / 100)
+						else
+							bestMin, bestMax = nil, nil
+						end
+					end
 				end
 			end
 		end
@@ -303,15 +378,18 @@ function TooltipParser.ParseLine(rawText, fallbackKind)
 				bestMin, bestMax = bestMax, bestMin
 			end
 
-			local mult = GetTickMultiplier(lower, bestEnd, rules)
+			local mult = GetTickMultiplier(lower, bestStart, bestEnd, rules)
 			local segMin = bestMin * mult
 			local segMax = bestMax * mult
 			local segDuration = GetSegmentDuration(lower, bestStart, bestEnd, rules)
 
 			local bucket = totals[bestKind]
 			if not bucket then
-				bucket = { min = 0, max = 0, directMin = 0, directMax = 0, dotMin = 0, dotMax = 0, duration = nil }
+				bucket = { min = 0, max = 0, directMin = 0, directMax = 0, dotMin = 0, dotMax = 0, duration = nil, canCrit = true }
 				totals[bestKind] = bucket
+			end
+			if bestIsHealthPct then
+				bucket.canCrit = false
 			end
 			bucket.min = bucket.min + segMin
 			bucket.max = bucket.max + segMax
@@ -320,6 +398,9 @@ function TooltipParser.ParseLine(rawText, fallbackKind)
 				bucket.dotMin = bucket.dotMin + segMin
 				bucket.dotMax = bucket.dotMax + segMax
 				bucket.duration = bucket.duration or segDuration
+				if mult > 1 then
+					bucket.ticks = mult
+				end
 			else
 				bucket.directMin = bucket.directMin + segMin
 				bucket.directMax = bucket.directMax + segMax
@@ -430,7 +511,7 @@ local function ParseComboTierLine(rawSubLine, contextKind, contextSchool, rules)
 		minVal, maxVal = maxVal, minVal
 	end
 
-	local mult = GetTickMultiplier(rest, endIdx, rules)
+	local mult = GetTickMultiplier(rest, 1, endIdx, rules)
 	local segMin = minVal * mult
 	local segMax = maxVal * mult
 	local segDuration = GetSegmentDuration(rest, 1, endIdx, rules)
@@ -497,11 +578,45 @@ function TooltipParser.ResolveComboTier(parsed, allowZeroFallback)
 		dotMin = chosenTier.dotMin,
 		dotMax = chosenTier.dotMax,
 		duration = chosenTier.duration,
+		ticks = chosenTier.ticks,
+		canCrit = chosenTier.canCrit,
+		cooldown = parsed.cooldown,
 		comboTiers = parsed.comboTiers,
 		comboMinTier = parsed.comboMinTier,
 		comboMaxTier = parsed.comboMaxTier,
 		activeComboPoints = usedCP,
 	}
+end
+
+local function ParseCooldownText(rawText, rules)
+	if not rawText or ns.IsSecret(rawText) or rawText == "" or not rules then
+		return nil
+	end
+
+	local norm = NormalizeDurationUnits(NormalizeText(rawText):lower(), rules)
+	if rules.cooldownSecPatterns then
+		for _, pat in ipairs(rules.cooldownSecPatterns) do
+			local val = norm:match(pat)
+			if val then
+				local sec = ParseDecimal(val)
+				if sec and sec > 0 then
+					return sec
+				end
+			end
+		end
+	end
+	if rules.cooldownMinPatterns then
+		for _, pat in ipairs(rules.cooldownMinPatterns) do
+			local val = norm:match(pat)
+			if val then
+				local mins = ParseDecimal(val)
+				if mins and mins > 0 then
+					return mins * 60
+				end
+			end
+		end
+	end
+	return nil
 end
 
 -- Parcourt un tableau de lignes de tooltip (TooltipData.lines) et retourne (parsedResult, hadSecret)
@@ -515,6 +630,7 @@ function TooltipParser.ParseLines(lines)
 
 	local hadSecret = false
 	local firstParsed = nil
+	local detectedCooldown = nil
 	local contextKind = nil
 	local contextSchool = nil
 	local sawComboHint = false
@@ -525,38 +641,48 @@ function TooltipParser.ParseLines(lines)
 	-- On commence à l'index 2 pour ignorer le titre du sort (ligne 1)
 	for i = 2, #lines do
 		local line = lines[i]
-		if line and not ns.IsSecret(line) and line.leftText then
-			if ns.IsSecret(line.leftText) then
-				hadSecret = true
-			else
-				for subLine in NormalizeText(line.leftText):gmatch("[^\r\n]+") do
-					local lowerSub = subLine:lower()
-					if lowerSub:find(comboHint, 1, true) then
-						sawComboHint = true
-					end
-					if not contextKind then
-						contextKind = DetectContextKind(lowerSub, rules)
-					end
-					if not contextSchool then
-						contextSchool = DetectSchool(lowerSub, rules)
-					end
+		if line and not ns.IsSecret(line) then
+			if not detectedCooldown and i <= 5 then
+				if line.rightText and not ns.IsSecret(line.rightText) then
+					detectedCooldown = ParseCooldownText(line.rightText, rules)
+				end
+				if not detectedCooldown and line.leftText and not ns.IsSecret(line.leftText) then
+					detectedCooldown = ParseCooldownText(line.leftText, rules)
+				end
+			end
+			if line.leftText then
+				if ns.IsSecret(line.leftText) then
+					hadSecret = true
+				else
+					for subLine in NormalizeText(line.leftText):gmatch("[^\r\n]+") do
+						local lowerSub = subLine:lower()
+						if lowerSub:find(comboHint, 1, true) then
+							sawComboHint = true
+						end
+						if not contextKind then
+							contextKind = DetectContextKind(lowerSub, rules)
+						end
+						if not contextSchool then
+							contextSchool = DetectSchool(lowerSub, rules)
+						end
 
-					local cp, tierResult = ParseComboTierLine(subLine, contextKind, contextSchool, rules)
-					if cp and tierResult then
-						if not comboTiers[cp] then
-							comboCount = comboCount + 1
-						end
-						comboTiers[cp] = tierResult
-						if not comboMinTier or cp < comboMinTier then
-							comboMinTier = cp
-						end
-						if not comboMaxTier or cp > comboMaxTier then
-							comboMaxTier = cp
-						end
-					elseif not firstParsed then
-						local parsed = TooltipParser.ParseLine(subLine)
-						if parsed then
-							firstParsed = parsed
+						local cp, tierResult = ParseComboTierLine(subLine, contextKind, contextSchool, rules)
+						if cp and tierResult then
+							if not comboTiers[cp] then
+								comboCount = comboCount + 1
+							end
+							comboTiers[cp] = tierResult
+							if not comboMinTier or cp < comboMinTier then
+								comboMinTier = cp
+							end
+							if not comboMaxTier or cp > comboMaxTier then
+								comboMaxTier = cp
+							end
+						elseif not firstParsed then
+							local parsed = TooltipParser.ParseLine(subLine)
+							if parsed then
+								firstParsed = parsed
+							end
 						end
 					end
 				end
@@ -569,7 +695,12 @@ function TooltipParser.ParseLines(lines)
 			comboTiers = comboTiers,
 			comboMinTier = comboMinTier,
 			comboMaxTier = comboMaxTier,
+			cooldown = detectedCooldown,
 		}, true), hadSecret
+	end
+
+	if firstParsed and detectedCooldown and not firstParsed.cooldown then
+		firstParsed.cooldown = detectedCooldown
 	end
 
 	return firstParsed, hadSecret

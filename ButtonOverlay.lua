@@ -77,7 +77,7 @@ local function FormatCenterStat(parsed, spellID, db)
 	if stat == "weighted" then
 		return ns.FormatNumber(metrics.weightedAvg), r, g, b
 	elseif stat == "crit" then
-		local val = metrics.critTotal or metrics.critDirect
+		local val = metrics.critDirect or metrics.critTick
 		if not val then
 			return "", r, g, b
 		end

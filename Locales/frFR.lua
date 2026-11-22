@@ -66,6 +66,7 @@ local ui = {
 	WORD_DAMAGE = "Dégâts",
 	TAG_CAST = "%.1fs cast",
 	TAG_GCD = "%.2gs GCD",
+	TAG_CD = "%s CD",
 	COMBO_PT_SINGULAR = " (%d pt)",
 	COMBO_PT_PLURAL = " (%d pts)",
 
@@ -74,10 +75,10 @@ local ui = {
 	TT_TOTAL_DURATION = "%s totaux (%gs)%s",
 	TT_AVERAGE = "%s moyens%s",
 	TT_CRIT = "Critique (%s)",
-	TT_CRIT_TOTAL_FMT = "%.1f (total %.1f)",
-	TT_CRIT_MAX = "Critique max (%s)",
-	TT_WEIGHTED_AVG = "Moyenne pondérée (crit)",
+	TT_CRIT_TICK = "Critique / tick (%s)",
+	TT_WEIGHTED_AVG_PCT = "Moyenne pondérée (%.1f%% crit)",
 	TT_PER_SEC_VALUE = "%.1f / s",
+	TT_PER_GCD = "%s par GCD (%s)",
 	TT_PERIODIC_DPS = "%s périodique (%gs)",
 	TT_REMAINING_CASTS = "Lancers possibles",
 }
@@ -88,6 +89,9 @@ local parser = {
 
 	healDetectPatterns = {
 		"%d+%s+points?%s+de%s+vie",
+		"rend[^%.]-%d+[%.,]?%d*%s*%%%s+de%s+[^%.]-vie",
+		"récupérez[^%.]-%d+[%.,]?%d*%s*%%%s+de%s+[^%.]-vie",
+		"restaure[^%.]-%d+[%.,]?%d*%s*%%%s+de%s+[^%.]-vie",
 		"soigne",
 		"soins",
 	},
@@ -122,6 +126,9 @@ local parser = {
 		{ pattern = "(%d+)%s+points?%s+de%s+degats?", kind = "damage", range = false },
 		{ pattern = "dégâts? de l'arme[^%d]*plus%s+(%d+)", kind = "damage", range = false },
 		{ pattern = "(%d+)%s+points?%s+de%s+vie", kind = "heal", range = false },
+		{ pattern = "rend[^%d%%%.]*(%d+[%.,]?%d*)%s*%%%s+de%s+[^%.]-vie", kind = "heal", requiresLineKind = "heal", isHealthPct = true },
+		{ pattern = "récupérez[^%d%%%.]*(%d+[%.,]?%d*)%s*%%%s+de%s+[^%.]-vie", kind = "heal", requiresLineKind = "heal", isHealthPct = true },
+		{ pattern = "restaure[^%d%%%.]*(%d+[%.,]?%d*)%s*%%%s+de%s+[^%.]-vie", kind = "heal", requiresLineKind = "heal", isHealthPct = true },
 		{ pattern = "(%d+)%s+points?%s+supplémentaires", useLineKind = true, range = false },
 		{ pattern = "(%d+)%s+supplémentaires", useLineKind = true, range = false },
 		{ pattern = "pour%s+(%d+)%s+points?", kind = "heal", range = false, requiresLineKind = "heal" },
@@ -155,6 +162,12 @@ local parser = {
 	},
 	beforeDurationPatterns = {
 		"en%s+([%d%.,]+)%s+sec[^%d]*$",
+	},
+	cooldownSecPatterns = {
+		"([%d%.,]+)%s+sec%s+de%s+recharge",
+	},
+	cooldownMinPatterns = {
+		"([%d%.,]+)%s+min%s+de%s+recharge",
 	},
 	conjunctionWords = { "et" },
 }

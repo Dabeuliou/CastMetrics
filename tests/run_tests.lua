@@ -22,6 +22,10 @@ _G["UnitPower"] = function(_, powerType)
 	return 100
 end
 
+_G["UnitHealthMax"] = function()
+	return 10000
+end
+
 _G["issecretvalue"] = function(_)
 	return false
 end

@@ -305,6 +305,9 @@ function events.PLAYER_ENTERING_WORLD()
 	if ns.InitButtonOverlays then
 		ns.InitButtonOverlays()
 	end
+	if ns.TooltipParser and ns.TooltipParser.CacheMaxHealth then
+		ns.TooltipParser.CacheMaxHealth()
+	end
 	if ns.ManaCalc and ns.ManaCalc.CacheMaxPowers then
 		ns.ManaCalc.CacheMaxPowers()
 	end
@@ -324,10 +327,22 @@ function events.UPDATE_BONUS_ACTIONBAR()
 end
 
 function events.UPDATE_SHAPESHIFT_FORM()
+	if ns.TooltipParser and ns.TooltipParser.CacheMaxHealth then
+		ns.TooltipParser.CacheMaxHealth()
+	end
 	if ns.ManaCalc and ns.ManaCalc.CacheMaxPowers then
 		ns.ManaCalc.CacheMaxPowers()
 	end
 	ns.RequestUpdate(false)
+end
+
+function events.UNIT_MAXHEALTH(unitTarget)
+	if unitTarget == "player" then
+		if ns.TooltipParser and ns.TooltipParser.CacheMaxHealth then
+			ns.TooltipParser.CacheMaxHealth()
+		end
+		ns.RequestUpdate(false)
+	end
 end
 
 function events.ACTIONBAR_UPDATE_STATE()

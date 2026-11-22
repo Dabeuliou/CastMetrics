@@ -66,6 +66,7 @@ local ui = {
 	WORD_DAMAGE = "Daño",
 	TAG_CAST = "%.1fs lanz.",
 	TAG_GCD = "%.2gs GCD",
+	TAG_CD = "%s reutil.",
 	COMBO_PT_SINGULAR = " (%d pto)",
 	COMBO_PT_PLURAL = " (%d ptos)",
 
@@ -74,10 +75,10 @@ local ui = {
 	TT_TOTAL_DURATION = "%s total (%gs)%s",
 	TT_AVERAGE = "%s medio%s",
 	TT_CRIT = "Crítico (%s)",
-	TT_CRIT_TOTAL_FMT = "%.1f (total %.1f)",
-	TT_CRIT_MAX = "Crítico máx. (%s)",
-	TT_WEIGHTED_AVG = "Media ponderada (crít.)",
+	TT_CRIT_TICK = "Crítico / tick (%s)",
+	TT_WEIGHTED_AVG_PCT = "Media ponderada (%.1f%% crít.)",
 	TT_PER_SEC_VALUE = "%.1f / s",
+	TT_PER_GCD = "%s por GCD (%s)",
 	TT_PERIODIC_DPS = "%s periódico (%gs)",
 	TT_REMAINING_CASTS = "Lanzamientos posibles",
 }
@@ -89,6 +90,7 @@ local parser = {
 	healDetectPatterns = {
 		"sana[^%.]-%d+",
 		"restaura[^%.]-%d+[^%.]-salud",
+		"%d+[%.,]?%d*%s*%%[^%.]-salud",
 		"%d+%s+p%.?%s+de%s+salud",
 		"%d+%s+puntos?%s+de%s+salud",
 		"sanación",
@@ -124,6 +126,9 @@ local parser = {
 		{ pattern = "(%d+[%.,]?%d*)%s+p%.?%s+de%s+daño", kind = "damage", range = false },
 		{ pattern = "(%d+[%.,]?%d*)%s+puntos?%s+de%s+daño", kind = "damage", range = false },
 		{ pattern = "daño de arma[^%d]*más%s+(%d+)", kind = "damage", range = false },
+		{ pattern = "sana[^%d%%%.]*(%d+[%.,]?%d*)%s*%%%s+de%s+[^%.]-salud", kind = "heal", requiresLineKind = "heal", isHealthPct = true },
+		{ pattern = "restaura[^%d%%%.]*(%d+[%.,]?%d*)%s*%%%s+de%s+[^%.]-salud", kind = "heal", requiresLineKind = "heal", isHealthPct = true },
+		{ pattern = "un%s+(%d+[%.,]?%d*)%s*%%%s+de%s+[^%.]-salud", kind = "heal", requiresLineKind = "heal", isHealthPct = true },
 		{ pattern = "(%d+[%.,]?%d*)%s+p%.?%s+de%s+salud", kind = "heal", range = false },
 		{ pattern = "(%d+[%.,]?%d*)%s+puntos?%s+de%s+salud", kind = "heal", range = false },
 		{ pattern = "(%d+[%.,]?%d*)%s+p%.?%s+más", useLineKind = true, range = false },
@@ -164,6 +169,14 @@ local parser = {
 	},
 	beforeDurationPatterns = {
 		"durante%s+([%d%.,]+)%s+sec[^%d]*$",
+	},
+	cooldownSecPatterns = {
+		"([%d%.,]+)%s+sec%s+de%s+reutilizaci",
+		"([%d%.,]+)%s+sec%s+reutilizaci",
+	},
+	cooldownMinPatterns = {
+		"([%d%.,]+)%s+min%s+de%s+reutilizaci",
+		"([%d%.,]+)%s+min%s+reutilizaci",
 	},
 	conjunctionWords = { "y" },
 }
