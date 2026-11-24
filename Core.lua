@@ -19,6 +19,9 @@ local DEFAULT_DB = {
 
 -- Détection Retail (Mainline) vs WoW Forever / Classic+ (multiplicateurs critiques, DoTs, Hâte)
 ns.IS_RETAIL = (WOW_PROJECT_ID ~= nil and WOW_PROJECT_MAINLINE ~= nil and WOW_PROJECT_ID == WOW_PROJECT_MAINLINE)
+ns.VERSION = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version"))
+	or (GetAddOnMetadata and GetAddOnMetadata(addonName, "Version"))
+	or "dev"
 
 -- Vérifie si une valeur est protégée ("secret value") par le client moderne (Retail 12.x / Forever 16001)
 function ns.IsSecret(value)
@@ -102,7 +105,7 @@ local function RunDebug(slotArg)
 	end
 
 	local L = ns.L
-	print(string.format("|cff00ccff[CastMetrics Debug]|r " .. L["DEBUG_HEADER"], tostring(actionKind), tostring(actionValue), tostring(ns.IS_RETAIL), tostring(ns.LOCALE)))
+	print(string.format("|cff00ccff[CastMetrics v%s Debug]|r " .. L["DEBUG_HEADER"], tostring(ns.VERSION), tostring(actionKind), tostring(actionValue), tostring(ns.IS_RETAIL), tostring(ns.LOCALE)))
 
 	if actionKind == "action" then
 		if not HasAction(actionValue) then

@@ -2,6 +2,13 @@
 
 All notable changes to **CastMetrics** are documented in this file.
 
+## [1.4.2-beta.2] - 2026-11-24
+
+### Added
+- Display the active addon version (`vX.Y.Z`) directly in `/cm debug` output.
+
+---
+
 ## [1.4.2-beta.1] - 2026-11-22
 
 ### Added

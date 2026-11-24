@@ -11,6 +11,7 @@
   "diagnostics.globals": [
     "ActionBarButtonEventsFrame",
     "C_ActionBar",
+    "C_AddOns",
     "C_CurveUtil",
     "C_Spell",
     "C_Timer",
@@ -26,6 +27,7 @@
     "GameTooltip",
     "GetActionCooldown",
     "GetActionInfo",
+    "GetAddOnMetadata",
     "GetComboPoints",
     "GetCritChance",
     "GetHaste",
